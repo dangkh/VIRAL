@@ -1,0 +1,8 @@
+vlm:
+  plain: |
+    Assuming you are a recommender system, provided the images of a product in an online platform.
+    Describe this product in 2-3 sentence that is input of recommendation model. Provide only the final description.
+  title: |
+    You are a recommender system. Given this product image, it's title: {} think about
+    how you would describe it in general terms for an online platform. Then, based on that general description,
+    describe this product in 2-3 sentence that best capture its essential features for a recommendation system. Provide ONLY the final description.

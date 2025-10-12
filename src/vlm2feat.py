@@ -82,6 +82,7 @@ print(cfg)
 
 # CRAWLING DATA
 myIDX = datasets.index(cfg.data)
+crawlData = cfg.data
 url = linkmeta[myIDX]
 response = requests.get(url, stream=True)
 

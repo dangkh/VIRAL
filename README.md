@@ -23,6 +23,8 @@ VLIF/
 
 ```sh
 pip install -r requirements.txt
+pip install transformers accelerate timm einops bitsandbytes --quiet
+pip install qwen-vl-utils[decord]==0.0.8
 ```
 
 ### 2. Generate text features

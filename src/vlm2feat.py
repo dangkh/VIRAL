@@ -13,6 +13,8 @@ import csv
 import gzip
 import ast
 from config import TrainConfig 
+from tqdm import tqdm
+import yaml
 
 linkmeta = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Baby.json.gz",
 "https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Sports_and_Outdoors.json.gz",
@@ -24,57 +26,51 @@ link5cores = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/
 datasets = ["baby", "sport", "cloth"]
 
 
-# model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-#     "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto"
-# )
 
-# processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct")
+def getDescribe(vlmModel, processor, link = None, title = None, cfg = None, all_prompts = None):
+    if cfg.template == 'title':
+        myPrompt = all_prompts['vlm']['title'].format(title)
+    else:
+        myPrompt = all_prompts['vlm']['plain']
+    messages = [
+    {
+        "role": "user",
+        "content": [
+            {
+                "type": "image",
+                "image": link,
+            },
+            {
+                "type": "text",
+                "text": (myPrompt)
+            },
+        ],
+    }
+    ]
 
+    # Preparation for inference
+    text = processor.apply_chat_template(
+        messages, tokenize=False, add_generation_prompt=True
+    )
+    image_inputs, video_inputs = process_vision_info(messages)
+    inputs = processor(
+        text=[text],
+        images=image_inputs,
+        videos=video_inputs,
+        padding=True,
+        return_tensors="pt",
+    )
+    inputs = inputs.to("cuda")
 
-# def getDescribe(link = None, title = None, des = None):
-#     if title != None:
-#         myPrompt = generate_prompt(title)
-#     else:
-#         myPrompt = p1
-#     messages = [
-#     {
-#         "role": "user",
-#         "content": [
-#             {
-#                 "type": "image",
-#                 "image": link,
-#             },
-#             {
-#                 "type": "text",
-#                 "text": (myPrompt)
-#             },
-#         ],
-#     }
-#     ]
-
-#     # Preparation for inference
-#     text = processor.apply_chat_template(
-#         messages, tokenize=False, add_generation_prompt=True
-#     )
-#     image_inputs, video_inputs = process_vision_info(messages)
-#     inputs = processor(
-#         text=[text],
-#         images=image_inputs,
-#         videos=video_inputs,
-#         padding=True,
-#         return_tensors="pt",
-#     )
-#     inputs = inputs.to("cuda")
-
-#     # Inference: Generation of the output
-#     generated_ids = model.generate(**inputs, max_new_tokens=128)
-#     generated_ids_trimmed = [
-#         out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-#     ]
-#     output_text = processor.batch_decode(
-#         generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-#     )
-#     return output_text
+    # Inference: Generation of the output
+    generated_ids = vlmModel.generate(**inputs, max_new_tokens=128)
+    generated_ids_trimmed = [
+        out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+    ]
+    output_text = processor.batch_decode(
+        generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+    )
+    return output_text
 
 
 cfg = TrainConfig()
@@ -89,13 +85,13 @@ filePath = f'./data/{crawlData}/{crawlData}.json.gz'
 if os.path.exists(filePath):
     print("✅ File exist.")
 else:
-	response = requests.get(url, stream=True)
-	if response.status_code == 200:
-	    with open(filePath, 'wb') as f:
-	        f.write(response.raw.read())
-	    print("Download complete.")
-	else:
-	    print(f"Failed to download. Status code: {response.status_code}")
+  response = requests.get(url, stream=True)
+  if response.status_code == 200:
+      with open(filePath, 'wb') as f:
+          f.write(response.raw.read())
+      print("Download complete.")
+  else:
+      print(f"Failed to download. Status code: {response.status_code}")
 
 
 url = link5cores[myIDX]
@@ -103,13 +99,13 @@ filePath = f'./data/{crawlData}/review_{crawlData}.json.gz'
 if os.path.exists(filePath):
     print("✅ File exist.")
 else:
-	response = requests.get(url, stream=True)
-	if response.status_code == 200:
-	    with open(filePath, 'wb') as f:
-	        f.write(response.raw.read())
-	    print("Download complete.")
-	else:
-	    print(f"Failed to download. Status code: {response.status_code}")
+  response = requests.get(url, stream=True)
+  if response.status_code == 200:
+      with open(filePath, 'wb') as f:
+          f.write(response.raw.read())
+      print("Download complete.")
+  else:
+      print(f"Failed to download. Status code: {response.status_code}")
 
 
 data = []
@@ -176,42 +172,64 @@ for image_path in image_files:
 asin_descriptions = {}
 len(asin_image_paths)
 
-# counter = 0
 
-# # Iterate through the unique ASINs and get descriptions for corresponding images
-# for asin in tqdm(unique_asin):
-#     if asin in asin_descriptions:
-#         continue
-#     if asin in asin_image_paths:
-#         image_path = asin_image_paths[asin]
-#         try:
-#             product_row = metaDF_filtered[metaDF_filtered['asin'] == asin]
-#             title = product_row['title'].iloc[0]
-#             description = product_row['description'].iloc[0]
-#             # description = getDescribe(image_path)
-#             description = getDescribe(image_path, title)
-#             # getDescribe returns a list, take the first element
-#             asin_descriptions[asin] = description[0] if description else nan
-#             counter += 1
-#         except Exception as e:
-#             print(f"Error processing ASIN {asin}: {e}")
-#             asin_descriptions[asin] = nan
-#     else:
-#         asin_descriptions[asin] = nan # ASIN not found in downloaded images
+
+# DESCRIPTION FROM VLM
+with open("src/prompts.yaml", "r") as f:
+    all_prompts = yaml.safe_load(f)
+
+
+if cfg.vlmModel == 'qwen':
+  model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+      "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto"
+  )
+
+  processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
+elif cfg.vlmModel == 'blip':
+  pass
+elif cfg.vlmModel == 'gema':
+  pass
+else:
+  pass
 
 
 
-# # Convert the results to a list of tuples for writing to CSV
-# amazon_res = [(asin, desc) for asin, desc in asin_descriptions.items()]
 
-# # Write the results to a CSV file
-# amazon_output_filename = 'amazon_descriptions.csv'
-# with open(amazon_output_filename, 'w', newline='') as csvfile:
-#     writer = csv.writer(csvfile)
-#     writer.writerow(['asin', 'description']) # Write header
-#     writer.writerows(amazon_res)
+counter = 0
 
-# print(f"Amazon descriptions saved to {amazon_output_filename}")        
+# Iterate through the unique ASINs and get descriptions for corresponding images
+for asin in tqdm(unique_asin):
+    if asin in asin_descriptions:
+        continue
+    if asin in asin_image_paths:
+        image_path = asin_image_paths[asin]
+        try:
+            product_row = metaDF_filtered[metaDF_filtered['asin'] == asin]
+            title = product_row['title'].iloc[0]
+            description = product_row['description'].iloc[0]
+            description = getDescribe(model, processor, image_path, title, cfg, all_prompts)
+            
+            asin_descriptions[asin] = description[0] if description else nan
+            counter += 1
+        except Exception as e:
+            print(f"Error processing ASIN {asin}: {e}")
+            asin_descriptions[asin] = nan
+    else:
+        asin_descriptions[asin] = nan # ASIN not found in downloaded images
+
+
+
+# Convert the results to a list of tuples for writing to CSV
+amazon_res = [(asin, desc) for asin, desc in asin_descriptions.items()]
+
+# Write the results to a CSV file
+amazon_output_filename = f'amazon_{cfg.data}_model_{cfg.vlmModel}_type_{cfg.template}_descriptions.csv'
+with open(amazon_output_filename, 'w', newline='') as csvfile:
+    writer = csv.writer(csvfile)
+    writer.writerow(['asin', 'description']) # Write header
+    writer.writerows(amazon_res)
+
+print(f"Amazon descriptions saved to {amazon_output_filename}")        
 
 
 

@@ -17,7 +17,7 @@ from tqdm import tqdm
 import yaml
 import torch
 
-device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 
@@ -189,17 +189,21 @@ with open("src/prompts.yaml", "r") as f:
 
 
 if cfg.vlmModel == 'qwen':
-  model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+    model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
       "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto"
-  )
-  model = model.to(device)
-  processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
+    )
+    model = model.to(device)
+    processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
 elif cfg.vlmModel == 'blip':
-  pass
+    pass
 elif cfg.vlmModel == 'gema':
-  pass
+    pass
 else:
-  pass
+    model_path = "lmms-lab/LLaVA-One-Vision-1.5-8B-Instruct"
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path, torch_dtype="auto", device_map="auto", trust_remote_code=True
+    )
+    processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
 
 
 

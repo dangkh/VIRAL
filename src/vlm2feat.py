@@ -15,6 +15,7 @@ import ast
 from config import TrainConfig 
 from tqdm import tqdm
 import yaml
+import torch
 
 device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)

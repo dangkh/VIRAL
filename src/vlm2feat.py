@@ -129,7 +129,7 @@ print(review5DF.columns)
 unique_asin = review5DF['asin'].unique()
 print(f"Number of unique ASINs: {len(unique_asin)}")
 
-location = "product_images"
+location = f"/data/{cfg.data}_product_images"
 
 counter = 0
 counter_error = 0
@@ -154,7 +154,7 @@ print(f"missing: {counter}")
 num_files = len(os.listdir(f"{location}"))
 print(f"Number of files in product_images: {num_files}")
 
-image_directory = "product_images"
+image_directory = location
 image_files = [os.path.join(image_directory, f) for f in os.listdir(image_directory) if os.path.isfile(os.path.join(image_directory, f))]
 len(image_files)
 

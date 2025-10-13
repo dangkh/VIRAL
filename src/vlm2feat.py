@@ -224,20 +224,18 @@ for asin in tqdm(unique_asin):
             asin_descriptions[asin] = nan
     else:
         asin_descriptions[asin] = nan # ASIN not found in downloaded images
+    if len(asin_descriptions) % 100 == 0:
+        # Convert the results to a list of tuples for writing to CSV
+        amazon_res = [(asin, desc) for asin, desc in asin_descriptions.items()]
 
+        # Write the results to a CSV file
+        amazon_output_filename = f'amazon_{cfg.data}_model_{cfg.vlmModel}_type_{cfg.template}_descriptions.csv'
+        with open(amazon_output_filename, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(['asin', 'description']) # Write header
+            writer.writerows(amazon_res)
 
-
-# Convert the results to a list of tuples for writing to CSV
-amazon_res = [(asin, desc) for asin, desc in asin_descriptions.items()]
-
-# Write the results to a CSV file
-amazon_output_filename = f'amazon_{cfg.data}_model_{cfg.vlmModel}_type_{cfg.template}_descriptions.csv'
-with open(amazon_output_filename, 'w', newline='') as csvfile:
-    writer = csv.writer(csvfile)
-    writer.writerow(['asin', 'description']) # Write header
-    writer.writerows(amazon_res)
-
-print(f"Amazon descriptions saved to {amazon_output_filename}")        
+        print(f"Amazon descriptions saved to {amazon_output_filename}")        
 
 
 

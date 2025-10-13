@@ -135,13 +135,12 @@ counter = 0
 counter_error = 0
 
 
-notice01 = 
-"""
+notice01 = """
         CREATE A FOLDER at location
 # os.makedirs(f"{location}", exist_ok=True)
         
 """
-print("notice01")
+print(notice01)
 
 for cnt, row in tqdm(metaDF_filtered.iterrows(), total =  len(metaDF_filtered)):
   image_urls = row['imUrl']

@@ -5,8 +5,8 @@ import json
 import pandas as pd
 import csv
 
-# from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
-# from qwen_vl_utils import process_vision_info
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+from qwen_vl_utils import process_vision_info
 # import requests
 # from PIL import Image
 # from transformers import BlipProcessor, BlipForConditionalGeneration

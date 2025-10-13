@@ -10,7 +10,7 @@ import csv
 # import requests
 # from PIL import Image
 # from transformers import BlipProcessor, BlipForConditionalGeneration
-# import gzip
+import gzip
 # import ast
 from config import TrainConfig 
 
@@ -84,29 +84,36 @@ print(cfg)
 myIDX = datasets.index(cfg.data)
 crawlData = cfg.data
 url = linkmeta[myIDX]
-response = requests.get(url, stream=True)
 
-if response.status_code == 200:
-    with open(f'{crawlData}.json.gz', 'wb') as f:
-        f.write(response.raw.read())
-    print("Download complete.")
+filePath = f'./data/{crawlData}/{crawlData}.json.gz'
+if os.path.exists(filePath):
+    print("✅ File exist.")
 else:
-    print(f"Failed to download. Status code: {response.status_code}")
+	response = requests.get(url, stream=True)
+	if response.status_code == 200:
+	    with open(filePath, 'wb') as f:
+	        f.write(response.raw.read())
+	    print("Download complete.")
+	else:
+	    print(f"Failed to download. Status code: {response.status_code}")
 
 
 url = link5cores[myIDX]
-response = requests.get(url, stream=True)
-
-if response.status_code == 200:
-    with open(f'review_{crawlData}.json.gz', 'wb') as f:
-        f.write(response.raw.read())
-    print("Download complete.")
+filePath = f'./data/{crawlData}/review_{crawlData}.json.gz'
+if os.path.exists(filePath):
+    print("✅ File exist.")
 else:
-    print(f"Failed to download. Status code: {response.status_code}")
+	response = requests.get(url, stream=True)
+	if response.status_code == 200:
+	    with open(filePath, 'wb') as f:
+	        f.write(response.raw.read())
+	    print("Download complete.")
+	else:
+	    print(f"Failed to download. Status code: {response.status_code}")
 
 
 data = []
-with gzip.open(f'{crawlData}.json.gz', 'rt') as f:
+with gzip.open(f'./data/{crawlData}/{crawlData}.json.gz', 'rt') as f:
     for line in f:
         data.append(ast.literal_eval(line))
 
@@ -116,7 +123,7 @@ metaDF_filtered = metaDF[["asin", "title", "brand", "description", "imUrl", "cat
 unique_Meta_asin = metaDF_filtered['asin'].unique()
 print(f"Number of unique ASINs: {len(unique_Meta_asin)}")
 data = []
-with gzip.open(f"/content/review_{crawlData}.json.gz", "r") as f:
+with gzip.open(f"./data/{crawlData}//review_{crawlData}.json.gz", "r") as f:
   for line in f:
     data.append(json.loads(line))
 

@@ -16,6 +16,10 @@ from config import TrainConfig
 from tqdm import tqdm
 import yaml
 
+device: torch.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+
 linkmeta = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Baby.json.gz",
 "https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Sports_and_Outdoors.json.gz",
 "https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Clothing_Shoes_and_Jewelry.json.gz"]
@@ -137,7 +141,6 @@ counter_error = 0
 
 os.makedirs(f"{location}", exist_ok=True)
 
-print(notice01)
 
 for cnt, row in tqdm(metaDF_filtered.iterrows(), total =  len(metaDF_filtered)):
   image_urls = row['imUrl']
@@ -188,7 +191,7 @@ if cfg.vlmModel == 'qwen':
   model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
       "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto"
   )
-
+  model = model.to(device)
   processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
 elif cfg.vlmModel == 'blip':
   pass

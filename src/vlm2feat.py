@@ -129,17 +129,14 @@ print(review5DF.columns)
 unique_asin = review5DF['asin'].unique()
 print(f"Number of unique ASINs: {len(unique_asin)}")
 
-location = f"/data/{cfg.data}_product_images"
+location = f"{cfg.data}_product_images"
 
 counter = 0
 counter_error = 0
 
 
-notice01 = """
-        CREATE A FOLDER at location
-# os.makedirs(f"{location}", exist_ok=True)
-        
-"""
+os.makedirs(f"{location}", exist_ok=True)
+
 print(notice01)
 
 for cnt, row in tqdm(metaDF_filtered.iterrows(), total =  len(metaDF_filtered)):

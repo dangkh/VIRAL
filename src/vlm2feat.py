@@ -11,7 +11,7 @@ import csv
 # from PIL import Image
 # from transformers import BlipProcessor, BlipForConditionalGeneration
 import gzip
-# import ast
+import ast
 from config import TrainConfig 
 
 linkmeta = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Baby.json.gz",

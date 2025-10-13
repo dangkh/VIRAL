@@ -133,7 +133,16 @@ location = f"/data/{cfg.data}_product_images"
 
 counter = 0
 counter_error = 0
-os.makedirs(f"{location}", exist_ok=True)
+
+
+notice01 = 
+"""
+        CREATE A FOLDER at location
+# os.makedirs(f"{location}", exist_ok=True)
+        
+"""
+print("notice01")
+
 for cnt, row in tqdm(metaDF_filtered.iterrows(), total =  len(metaDF_filtered)):
   image_urls = row['imUrl']
   asin = row['asin']

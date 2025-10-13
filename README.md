@@ -22,7 +22,9 @@ VLIF/
 ### 1. Install required libraries
 
 ```sh
-pip install -r requirements.txt
+conda create --name vlif python=3.10
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126C
+pip install git+https://github.com/huggingface/transformers accelerate
 pip install transformers accelerate timm einops bitsandbytes --quiet
 pip install qwen-vl-utils[decord]==0.0.8
 ```

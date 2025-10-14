@@ -17,9 +17,10 @@ def arg_parse():
                         default="baby", help="Name of the dataset.")
     parser.add_argument("--text_column", type=str, 
                         default="title", help="Name of the column containing text data.")
+    parser.add_argument("--vlm", type=str, default="qwen", help="Name of vlm model.")
     parser.add_argument("--type_prompt", type=str, 
-                        default="image_title_based_desc", 
-                        help="Name of the prompt generateing data: image_title_based_desc, image_based_desc, llm_based_desc")
+                        default="title", 
+                        help="Name of the prompt generateing data: title, plain, something")
     parser.add_argument("--add_meta", type=bool, default=True, help="add meta or not")
     parser.add_argument("--txt_embedding_model", type=str, 
                         default="sentence-transformers/all-MiniLM-L6-v2", 
@@ -35,9 +36,9 @@ def get_dataset(args) -> dict:
     dataset_folder = {
         "inter_file": f"data/{args.dataset}/{args.dataset}.inter",
         "mapping_file": f"data/{args.dataset}/i_id_mapping.csv",
-        "description_file": f"data/{args.dataset}/amazon_descriptions_{args.dataset}_sample.json",
+        "description_file": 
+            f"data/{args.dataset}/amazon_{args.dataset}_model_{args.vlm}_type_{type_prompt}_descriptions.csv.json",
         "meta_data": f"data/{args.dataset}/meta_{args.dataset}.json",
-        "u_id_mapping": "data/{args.dataset}/u_id_mapping.csv",
         "five_core_data": f"data/{args.dataset}/{args.dataset}_5.json",
     }
     return dataset_folder

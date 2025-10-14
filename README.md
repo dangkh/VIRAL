@@ -29,9 +29,21 @@ pip install transformers accelerate timm einops bitsandbytes --quiet
 pip install qwen-vl-utils[decord]==0.0.8
 ```
 
-### 2. Generate text features
+### 2. Generate text features for images
 
-Example with the "baby" dataset, using the "title" column as text data:
+Vlm generate feature for image, edit src/config.py to change the dataset and vlm model.
+```sh
+python src/vlm2feat.py
+```
+
+Move the generated files to corresponding directory, name of generated file sample is: `amazon_baby_model_qwen_type_plain_descriptions.csv`
+
+Place required files:
+```
+baby: gdown https://drive.google.com/uc?id=1_WKB112C095iHn8djsGCKYmhrdv0xtVS
+```
+
+Example with the "baby" dataset, using the "title" column to replace nan field:
 ```sh
 python src/get_text_feat.py --dataset=baby --text_column=title
 ```

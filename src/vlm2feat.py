@@ -134,7 +134,7 @@ print(review5DF.columns)
 unique_asin = review5DF['asin'].unique()
 print(f"Number of unique ASINs: {len(unique_asin)}")
 
-location = f"{cfg.data}_product_images"
+location = f"./data/{cfg.data}/{cfg.data}_product_images"
 
 counter = 0
 counter_error = 0
@@ -234,7 +234,7 @@ for asin in tqdm(unique_asin):
         amazon_res = [(asin, desc) for asin, desc in asin_descriptions.items()]
 
         # Write the results to a CSV file
-        amazon_output_filename = f'amazon_{cfg.data}_model_{cfg.vlmModel}_type_{cfg.template}_descriptions.csv'
+        amazon_output_filename = f'./data/{cfg.data}/amazon_{cfg.data}_model_{cfg.vlmModel}_type_{cfg.template}_descriptions.csv'
         with open(amazon_output_filename, 'w', newline='') as csvfile:
             writer = csv.writer(csvfile)
             writer.writerow(['asin', 'description']) # Write header

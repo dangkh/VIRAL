@@ -16,7 +16,7 @@ def arg_parse():
     parser.add_argument("--dataset", type=str, required=True, 
                         default="baby", help="Name of the dataset.")
     parser.add_argument("--text_column", type=str, 
-                        default="title", help="Name of the column containing text data.")
+                        default="description", help="Name of the column containing text data.")
     parser.add_argument("--vlm", type=str, default="qwen", help="Name of vlm model.")
     parser.add_argument("--type_prompt", type=str, 
                         default="title", 

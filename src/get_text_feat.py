@@ -91,7 +91,7 @@ def concat_with_meta_data(args, df, meta_data_file, text_column):
                 meta_df_5_core.at[id, col] = "" 
 
     if args.add_meta:                
-        meta_df_5_core["visual_enriched"] = meta_df_5_core[text_column]  + ". " + \ meta_df_5_core['llmDes']
+        meta_df_5_core["visual_enriched"] = meta_df_5_core[text_column]  + ". " +  meta_df_5_core['llmDes']
 
     printHead(meta_df_5_core, "SAMPLE all info")
     return meta_df_5_core

@@ -16,7 +16,7 @@ def arg_parse():
     parser.add_argument("--dataset", type=str, required=True, 
                         default="baby", help="Name of the dataset.")
     parser.add_argument("--text_column", type=str, 
-                        default="description", help="Name of the column containing text data.")
+                        default="title", help="Name of the column containing text data.")
     parser.add_argument("--vlm", type=str, default="qwen", help="Name of vlm model.")
     parser.add_argument("--type_prompt", type=str, 
                         default="title", 
@@ -58,8 +58,8 @@ def get_details_dataset_df(args, mapping_file, five_core_data, description_file)
     ### map item with description sample on asin 
     item_id_with_description_df = i_id_mapping.merge(description_df, on="asin", how="left")
     for id, row in item_id_with_description_df.iterrows():
-        if pd.isna(row[args.type_prompt]):
-            item_id_with_description_df.at[id, args.type_prompt] = ""
+        if pd.isna(row['description']):
+            item_id_with_description_df.at[id, 'description'] = ""
     
     printHead(item_id_with_description_df)
     return item_id_with_description_df

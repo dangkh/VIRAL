@@ -52,7 +52,7 @@ def get_details_dataset_df(args, mapping_file, five_core_data, description_file)
 
     description_df = pd.read_csv(description_file)
     print("Example: ")
-    print(df.head())
+    print(description_df.head())
     i_id_mapping = pd.read_csv(os.path.join(mapping_file), sep="\t")
 
     ### map item with description sample on asin 

@@ -19,7 +19,7 @@ def arg_parse():
                         default="title", help="Name of the column containing text data.")
     parser.add_argument("--vlm", type=str, default="qwen", help="Name of vlm model.")
     parser.add_argument("--type_prompt", type=str, 
-                        default="description", 
+                        default="plain", 
                         help="Name of the column contain prompt generateing data: description,title, plain, something")
     parser.add_argument("--add_meta", type=bool, default=True, help="add meta or not")
     parser.add_argument("--txt_embedding_model", type=str, 
@@ -51,7 +51,7 @@ def get_details_dataset_df(args, mapping_file, five_core_data, description_file)
     # description_df = pd.DataFrame(description_data)
 
     description_df = pd.read_csv(description_file)
-    description_df = description_df.rename(columns={args.type_prompt: 'llmDes'})
+    description_df = description_df.rename(columns={'description': 'llmDes'})
 
     print("Example: ")
     print(description_df.head())

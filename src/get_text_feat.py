@@ -37,7 +37,7 @@ def get_dataset(args) -> dict:
         "inter_file": f"data/{args.dataset}/{args.dataset}.inter",
         "mapping_file": f"data/{args.dataset}/i_id_mapping.csv",
         "description_file": 
-            f"data/{args.dataset}/amazon_{args.dataset}_model_{args.vlm}_type_{type_prompt}_descriptions.csv.json",
+            f"data/{args.dataset}/amazon_{args.dataset}_model_{args.vlm}_type_{args.type_prompt}_descriptions.csv",
         "meta_data": f"data/{args.dataset}/meta_{args.dataset}.json",
         "five_core_data": f"data/{args.dataset}/{args.dataset}_5.json",
     }
@@ -45,10 +45,14 @@ def get_dataset(args) -> dict:
 
 def get_details_dataset_df(args, mapping_file, five_core_data, description_file) -> pd.DataFrame:
     
-    with open(os.path.join(description_file), "r", encoding="utf-8") as f:
-        description_data = json.load(f)
+    # with open(os.path.join(description_file), "r", encoding="utf-8") as f:
+    #     description_data = json.load(f)
 
-    description_df = pd.DataFrame(description_data)
+    # description_df = pd.DataFrame(description_data)
+
+    description_df = pd.read_csv(description_file)
+    print("Example: ")
+    print(df.head())
     i_id_mapping = pd.read_csv(os.path.join(mapping_file), sep="\t")
 
     ### map item with description sample on asin 

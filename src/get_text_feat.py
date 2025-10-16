@@ -51,6 +51,8 @@ def get_details_dataset_df(args, mapping_file, five_core_data, description_file)
     # description_df = pd.DataFrame(description_data)
 
     description_df = pd.read_csv(description_file)
+    description_df = description_df.rename(columns={args.type_prompt: 'llmDes'})
+
     print("Example: ")
     print(description_df.head())
     i_id_mapping = pd.read_csv(os.path.join(mapping_file), sep="\t")
@@ -58,8 +60,8 @@ def get_details_dataset_df(args, mapping_file, five_core_data, description_file)
     ### map item with description sample on asin 
     item_id_with_description_df = i_id_mapping.merge(description_df, on="asin", how="left")
     for id, row in item_id_with_description_df.iterrows():
-        if pd.isna(row['description']):
-            item_id_with_description_df.at[id, 'description'] = ""
+        if pd.isna(row['llmDes']):
+            item_id_with_description_df.at[id, 'llmDes'] = ""
     
     printHead(item_id_with_description_df)
     return item_id_with_description_df
@@ -78,7 +80,7 @@ def concat_with_meta_data(args, df, meta_data_file, text_column):
     meta_df_5_core = df.merge(meta_df, on="asin", how="left")
     meta_df_5_core.rename(columns={"title_x": "title"}, inplace=True)
 
-    for id, row in enumerate(meta_df_5_core[args.type_prompt]):
+    for id, row in enumerate(meta_df_5_core['llmDes']):
       if pd.isna(row):
         meta_df_5_core.loc[id, args.type_prompt] = meta_df_5_core["description"][id]
 
@@ -89,8 +91,7 @@ def concat_with_meta_data(args, df, meta_data_file, text_column):
                 meta_df_5_core.at[id, col] = "" 
 
     if args.add_meta:                
-        meta_df_5_core["visual_enriched"] = meta_df_5_core[text_column]  + ". " + \
-                                    meta_df_5_core[args.type_prompt]
+        meta_df_5_core["visual_enriched"] = meta_df_5_core[text_column]  + ". " + \ meta_df_5_core['llmDes']
 
     printHead(meta_df_5_core, "SAMPLE all info")
     return meta_df_5_core

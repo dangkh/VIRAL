@@ -19,8 +19,8 @@ def arg_parse():
                         default="title", help="Name of the column containing text data.")
     parser.add_argument("--vlm", type=str, default="qwen", help="Name of vlm model.")
     parser.add_argument("--type_prompt", type=str, 
-                        default="title", 
-                        help="Name of the prompt generateing data: title, plain, something")
+                        default="description", 
+                        help="Name of the column contain prompt generateing data: description,title, plain, something")
     parser.add_argument("--add_meta", type=bool, default=True, help="add meta or not")
     parser.add_argument("--txt_embedding_model", type=str, 
                         default="sentence-transformers/all-MiniLM-L6-v2", 

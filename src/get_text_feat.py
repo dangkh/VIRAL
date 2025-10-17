@@ -45,13 +45,15 @@ def get_dataset(args) -> dict:
 
 def get_details_dataset_df(args, mapping_file, five_core_data, description_file) -> pd.DataFrame:
     
-    # with open(os.path.join(description_file), "r", encoding="utf-8") as f:
-    #     description_data = json.load(f)
+    if args.type_prompt == "sample":
+        with open(os.path.join(description_file), "r", encoding="utf-8") as f:
+            description_data = json.load(f)
 
-    # description_df = pd.DataFrame(description_data)
-
-    description_df = pd.read_csv(description_file)
-    description_df = description_df.rename(columns={'description': 'llmDes'})
+        description_df = pd.DataFrame(description_data)
+        description_df = description_df.rename(columns={'image_title_based_desc': 'llmDes'})
+    else:
+        description_df = pd.read_csv(description_file)
+        description_df = description_df.rename(columns={'description': 'llmDes'})
 
     print("Example: ")
     print(description_df.head())

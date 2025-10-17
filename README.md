@@ -24,10 +24,12 @@ VLIF/
 
 ```sh
 conda create --name vlif python=3.10
-pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126C
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121
 pip install git+https://github.com/huggingface/transformers accelerate
 pip install transformers accelerate timm einops bitsandbytes --quiet
 pip install qwen-vl-utils[decord]==0.0.8
+torch geometry
+matplotlib
 ```
 
 ### 2. Preprocess

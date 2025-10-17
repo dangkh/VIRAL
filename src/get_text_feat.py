@@ -33,11 +33,14 @@ def get_encoding_model(model_name="sentence-transformers/all-MiniLM-L6-v2"):
     return model
 
 def get_dataset(args) -> dict: 
+    filetype = 'csv'
+    if args.type_prompt == "sample":
+        filetype = json
     dataset_folder = {
         "inter_file": f"data/{args.dataset}/{args.dataset}.inter",
         "mapping_file": f"data/{args.dataset}/i_id_mapping.csv",
         "description_file": 
-            f"data/{args.dataset}/amazon_{args.dataset}_model_{args.vlm}_type_{args.type_prompt}_descriptions.csv",
+            f"data/{args.dataset}/amazon_{args.dataset}_model_{args.vlm}_type_{args.type_prompt}_descriptions.{filetype}",
         "meta_data": f"data/{args.dataset}/meta_{args.dataset}.json",
         "five_core_data": f"data/{args.dataset}/{args.dataset}_5.json",
     }

@@ -35,7 +35,7 @@ def get_encoding_model(model_name="sentence-transformers/all-MiniLM-L6-v2"):
 def get_dataset(args) -> dict: 
     filetype = 'csv'
     if args.type_prompt == "sample":
-        filetype = json
+        filetype = 'json'
     dataset_folder = {
         "inter_file": f"data/{args.dataset}/{args.dataset}.inter",
         "mapping_file": f"data/{args.dataset}/i_id_mapping.csv",

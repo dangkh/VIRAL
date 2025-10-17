@@ -9,9 +9,10 @@ load_meta_cols: [itemID, description, title, category]
 TEXT_ID_FIELD: description
 filter_out_cod_start_users: True
 
-inter_file_name: 'baby14-indexed-v4.inter'
-text_file_name: 'meta-games-indexed.csv'
-img_dir_name: 'img'
+inter_file_name: 'baby.inter'
+# For raw feature only, VLIF not do this.
+# text_file_name: 'meta-games-indexed.csv'
+# img_dir_name: 'img'
 
 # name of frozen features
 #vision_feature_file: 'image_feat-v1.npy'

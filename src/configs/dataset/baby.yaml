@@ -16,8 +16,8 @@ inter_file_name: 'baby.inter'
 
 # name of frozen features
 #vision_feature_file: 'image_feat-v1.npy'
-vision_feature_file: 'text_feat.npy'
-text_feature_file: 'text_feat-v1.npy'
+vision_feature_file: 'en_image_feat.npy'
+text_feature_file: 'text_feat.npy'
 user_graph_dict_file: 'user_graph_dict.npy'
 
 max_img_size: 256

@@ -153,6 +153,8 @@ class VLIF(GeneralRecommender):
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
         self.result_embed = nn.Parameter(nn.init.xavier_normal_(torch.tensor(np.random.randn(num_user + num_item, dim_x)))).to(self.device)
+        print(config)
+        stop
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))

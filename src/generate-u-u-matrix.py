@@ -50,8 +50,8 @@ if __name__ == 	'__main__':
     cur_dir = os.getcwd()
     # cur_dir = os.path.dirname(os.path.abspath(__file__))
     con_dir = os.path.join(os.path.dirname(cur_dir), 'src/configs')
-    overall_config_file = os.path.join(con_dir, "src/overall.yaml")
-    dataset_config_file = os.path.join(con_dir, "src/dataset", "{}.yaml".format(dataset_name))
+    overall_config_file = os.path.join(con_dir, "overall.yaml")
+    dataset_config_file = os.path.join(con_dir, "dataset", "{}.yaml".format(dataset_name))
     conf_files = [overall_config_file, dataset_config_file]
     # load configs
     for file in conf_files:

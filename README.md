@@ -30,7 +30,9 @@ pip install transformers accelerate timm einops bitsandbytes --quiet
 pip install qwen-vl-utils[decord]==0.0.8
 ```
 
-### 2. Generate text features for images
+### 2. Preprocess
+
+#### Generate text features for images
 
 Vlm generate feature for image, edit src/config.py to change the dataset and vlm model.
 ```sh
@@ -56,6 +58,11 @@ Arguments:
 
 The embedding file will be saved at: `data/<dataset_name>/en_image_feat.npy`
 
+#### Generate user co-occurrence graph
+Example with the "baby" dataset
+```sh
+python src/generate-u-u-matrix.py -d=baby
+```
 
 ### 3. Training
 

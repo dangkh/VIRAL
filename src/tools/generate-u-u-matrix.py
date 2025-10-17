@@ -63,7 +63,7 @@ if __name__ == 	'__main__':
             print(f"[Warning] File not found: {file}")
     uid_field = config['USER_ID_FIELD']
     iid_field = config['ITEM_ID_FIELD']
-    project_root = os.path.dirname(cur_dir)  # DRAGON/
+    project_root = os.path.dirname(cur_dir)  
     dataset_path = os.path.join(project_root, config['data_path'], dataset_name)
     train_df = pd.read_csv(os.path.join(dataset_path, config['inter_file_name']), sep='\t')
     num_user = len(pd.unique(train_df[uid_field]))

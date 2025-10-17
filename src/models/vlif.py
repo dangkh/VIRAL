@@ -18,9 +18,9 @@ from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
 
 
-class DRAGON(GeneralRecommender):
+class VLIF(GeneralRecommender):
     def __init__(self, config, dataset):
-        super(DRAGON, self).__init__(config, dataset)
+        super(VLIF, self).__init__(config, dataset)
 
         num_user = self.n_users
         num_item = self.n_items

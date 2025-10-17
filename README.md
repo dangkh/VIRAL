@@ -1,4 +1,5 @@
 # VLIF
+Pytorch implementation for "Enhancing Multimodal Recommendations with Vision-Language Models and Information-Aware Fusion" [arxiv](https://arxiv.org/pdf/.pdf)
 
 ```
 VLIF/
@@ -54,3 +55,29 @@ Arguments:
 - `--txt_embedding_model` (Not required): Name of the embedding model for text data (e.g., sentence-transformers/all-MiniLM-L6-v2)
 
 The embedding file will be saved at: `data/<dataset_name>/en_image_feat.npy`
+
+
+### 3. Training
+
+
+
+
+
+This repo is implemented based on work of DRAGON: https://github.com/hongyurain/DRAGON
+
+
+
+## Data
+Data could be download from: [Baby/Sports/Clothing]()  
+
+## The parameters to reproduce the result in our paper
+| Datasets | learning rate | reg weight |
+|----------|--------|---------|
+| Baby     | 0.0001      | 0.001     |
+| Sports   | 0.0001      | 0.001     |
+| Clothing     | 0.0001      | 0.1     |
+
+#### Please consider to cite our paper if this model helps you, thanks:
+```
+here
+```

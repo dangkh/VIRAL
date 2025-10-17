@@ -53,4 +53,4 @@ Arguments:
 - `--text_column`: Name of the column containing text data (e.g., title)
 - `--txt_embedding_model` (Not required): Name of the embedding model for text data (e.g., sentence-transformers/all-MiniLM-L6-v2)
 
-The embedding file will be saved at: `data/<dataset_name>/<text_column>_txt_feat.npy`
+The embedding file will be saved at: `data/<dataset_name>/en_image_feat.npy`

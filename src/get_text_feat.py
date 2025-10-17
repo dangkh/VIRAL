@@ -102,7 +102,7 @@ def get_text_features(args, model, df):
     """
     txt_embeddings = model.encode(df["visual_enriched"], show_progress_bar=True, normalize_embeddings=True)
     print(f"SHAPE of matrix: {txt_embeddings.shape}")
-    np.save(os.path.join(f"./data/{args.dataset}/text_feat.npy"), txt_embeddings)
+    np.save(os.path.join(f"./data/{args.dataset}/en_image_feat.npy"), txt_embeddings)
 
 def main():
     args = arg_parse()

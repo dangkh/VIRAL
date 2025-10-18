@@ -188,6 +188,12 @@ class VLIF(GeneralRecommender):
         # ndarray([598918, 2]) for ml-imdb
         return np.column_stack((rows, cols))
 
+    def item_item(self, rep):
+        h = rep
+        for i in range(self.n_layers):
+            h = torch.sparse.mm(self.mm_adj, h)
+        return rep + h
+
     def forward(self, interaction):
         user_nodes, pos_item_nodes, neg_item_nodes = interaction[0], interaction[1], interaction[2]
         pos_item_nodes += self.n_users
@@ -199,60 +205,66 @@ class VLIF(GeneralRecommender):
             representation = self.v_rep
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
-            if representation is None:
-                representation = self.t_rep
-            else:
-                if self.construction == 'cat':
-                    representation = torch.cat((self.v_rep, self.t_rep), dim=1)
-                else:
-                    representation += self.t_rep
+        #     if representation is None:
+        #         representation = self.t_rep
+        #     else:
+        #         if self.construction == 'cat':
+        #             representation = torch.cat((self.v_rep, self.t_rep), dim=1)
+        #         else:
+        #             representation += self.t_rep
 
 
-        if self.construction == 'weighted_sum':
-            if self.v_rep is not None:
-                self.v_rep = torch.unsqueeze(self.v_rep, 2)
-                user_rep = self.v_rep[:self.num_user]
-            if self.t_rep is not None:
-                self.t_rep = torch.unsqueeze(self.t_rep, 2)
-                user_rep = self.t_rep[:self.num_user]
-            if self.v_rep is not None and self.t_rep is not None:
+        # if self.construction == 'weighted_sum':
+        #     if self.v_rep is not None:
+        #         self.v_rep = torch.unsqueeze(self.v_rep, 2)
+        #         user_rep = self.v_rep[:self.num_user]
+        #     if self.t_rep is not None:
+        #         self.t_rep = torch.unsqueeze(self.t_rep, 2)
+        #         user_rep = self.t_rep[:self.num_user]
+        #     if self.v_rep is not None and self.t_rep is not None:
                 
-                user_rep = torch.matmul(torch.cat((self.v_rep[:self.num_user], self.t_rep[:self.num_user]), dim=2),
-                                        self.weight_u)
-            user_rep = torch.squeeze(user_rep)
+        #         user_rep = torch.matmul(torch.cat((self.v_rep[:self.num_user], self.t_rep[:self.num_user]), dim=2),
+        #                                 self.weight_u)
+        #     user_rep = torch.squeeze(user_rep)
 
-        if self.construction == 'weighted_max':
-            # pdb.set_trace()
-            self.v_rep = torch.unsqueeze(self.v_rep, 2)
+        # if self.construction == 'weighted_max':
+        #     # pdb.set_trace()
+        #     self.v_rep = torch.unsqueeze(self.v_rep, 2)
             
-            self.t_rep = torch.unsqueeze(self.t_rep, 2)
-            
-            user_rep = torch.cat((self.v_rep[:self.num_user], self.t_rep[:self.num_user]), dim=2)
-            user_rep = self.weight_u.transpose(1,2)*user_rep
-            user_rep = torch.max(user_rep,dim=2).values
-        if self.construction == 'cat':
-            # pdb.set_trace()
-            if self.v_rep is not None:
-                user_rep = self.v_rep[:self.num_user]
-            if self.t_rep is not None:
-                user_rep = self.t_rep[:self.num_user]
-            if self.v_rep is not None and self.t_rep is not None:
-                self.v_rep = torch.unsqueeze(self.v_rep, 2)
-                self.t_rep = torch.unsqueeze(self.t_rep, 2)
-                user_rep = torch.cat((self.v_rep[:self.num_user], self.t_rep[:self.num_user]), dim=2)
-                user_rep = self.weight_u.transpose(1,2)*user_rep
-
-                user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
-
-        item_rep = representation[self.num_user:]
-
+        #     self.t_rep = torch.unsqueeze(self.t_rep, 2)
+        item_repV = self.v_rep[self.num_user:]
+        item_repT = self.t_rep[self.num_user:]
+    
+        #     user_rep = torch.cat((self.v_rep[:self.num_user], self.t_rep[:self.num_user]), dim=2)
+        #     user_rep = self.weight_u.transpose(1,2)*user_rep
+        #     user_rep = torch.max(user_rep,dim=2).values
+        # if self.construction == 'cat':
+        #     # pdb.set_trace()
+        #     if self.v_rep is not None:
+        #         user_rep = self.v_rep[:self.num_user]
+        #     if self.t_rep is not None:
+        #         user_rep = self.t_rep[:self.num_user]
+        #     if self.v_rep is not None and self.t_rep is not None:
+        
+        
         ############################################ multi-modal information aggregation
-        h = item_rep
-        for i in range(self.n_layers):
-            h = torch.sparse.mm(self.mm_adj, h)
-        h_u1 = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
-        user_rep = user_rep + h_u1
-        item_rep = item_rep + h
+        item_rep = torch.cat((item_repV, item_repT), dim=1)
+        item_rep = self.item_item(item_rep)
+
+
+        user_repV = self.v_rep[:self.num_user]
+        user_repV = user_repV.unsqueeze(2)
+        user_repT = self.t_rep[:self.num_user]
+        user_repT = user_repT.unsqueeze(2)
+        user_rep = torch.cat((user_repV, user_repT), dim=2)
+        user_rep = self.weight_u.transpose(1,2)*user_rep
+        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
+
+        h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
+
+        user_rep = 0.5 * (user_rep + h_u)
+        
+
         self.result_embed = torch.cat((user_rep, item_rep), dim=0)
         user_tensor = self.result_embed[user_nodes]
         pos_item_tensor = self.result_embed[pos_item_nodes]

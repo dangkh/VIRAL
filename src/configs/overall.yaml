@@ -18,7 +18,7 @@ embedding_size: 64
 
 # training settings
 epochs: 1000
-stopping_step: 20
+stopping_step: 30
 train_batch_size: 2048
 learner: adam
 learning_rate: 0.0001

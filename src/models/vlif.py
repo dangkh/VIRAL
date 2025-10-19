@@ -158,15 +158,16 @@ class VLIF(GeneralRecommender):
         # cms_num_heads = 4
         # cms_hidden_dim = 256
         # cms_num_layers = 1
-        
-        # self.CMS_encoder_layer = nn.TransformerEncoderLayer(
+
+        # encoder_layer = nn.TransformerEncoderLayer(
         #     d_model=hidden_dim,
         #     nhead=num_heads,
         #     dim_feedforward=hidden_dim * 4,
         #     dropout=0.1,
         #     batch_first=True
         # )
-        # self.cms = nn.TransformerEncoder(CMS_encoder_layer, num_layers=cms_num_layers)
+        # self.cross_transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
 
 
     def get_knn_adj_mat(self, mm_embeddings):
@@ -220,7 +221,8 @@ class VLIF(GeneralRecommender):
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
 
-
+        print(self.t_rep.shape, self.v_rep.shape)
+        stop
         # s1, s2 = CMS(self.t_rep, self.v_rep)
         # r = TBR(self.t_rep, self.v_rep)
         # v' = Proj(self.v_rep, r)
@@ -239,6 +241,7 @@ class VLIF(GeneralRecommender):
         user_repT = user_repT.unsqueeze(2)
         user_rep = torch.cat((user_repV, user_repT), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
+        # add synergy
         user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)

@@ -3,7 +3,7 @@ feat_embed_dim: 64
 
 
 n_layers: 2
-mm_image_weight: [0.5]
+mm_image_weight: [0.6]
 aggr_mode: ['add']
 knn_k: [10]
 k: [40]

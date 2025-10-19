@@ -223,7 +223,7 @@ class VLIF(GeneralRecommender):
 
         print(self.t_rep.shape, self.v_rep.shape)
         stop
-        # s1, s2 = CMS(self.t_rep, self.v_rep)
+        # s1, s2 = CMS([self.t_rep, self.v_rep])
         # r = TBR(self.t_rep, self.v_rep)
         # v' = Proj(self.v_rep, r)
        

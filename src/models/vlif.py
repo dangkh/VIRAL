@@ -67,20 +67,20 @@ class VLIF(GeneralRecommender):
             self.text_embedding = nn.Embedding.from_pretrained(self.t_feat, freeze=False)
             self.text_trs = nn.Linear(self.t_feat.shape[1], self.feat_embed_dim)
 
-        if os.path.exists(mm_adj_file):
-            self.mm_adj = torch.load(mm_adj_file)
-        else:
-            if self.v_feat is not None:
-                indices, image_adj = self.get_knn_adj_mat(self.image_embedding.weight.detach())
-                self.mm_adj = image_adj
-            if self.t_feat is not None:
-                indices, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
-                self.mm_adj = text_adj
-            if self.v_feat is not None and self.t_feat is not None:
-                self.mm_adj = self.mm_image_weight * image_adj + (1.0 - self.mm_image_weight) * text_adj
-                del text_adj
-                del image_adj
-            torch.save(self.mm_adj, mm_adj_file)
+        # if os.path.exists(mm_adj_file):
+        #     self.mm_adj = torch.load(mm_adj_file)
+        # else:
+        if self.v_feat is not None:
+            indices, image_adj = self.get_knn_adj_mat(self.image_embedding.weight.detach())
+            self.mm_adj = image_adj
+        if self.t_feat is not None:
+            indices, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
+            self.mm_adj = text_adj
+        if self.v_feat is not None and self.t_feat is not None:
+            self.mm_adj = self.mm_image_weight * image_adj + (1.0 - self.mm_image_weight) * text_adj
+            del text_adj
+            del image_adj
+        torch.save(self.mm_adj, mm_adj_file)
 
         # packing interaction in training into edge_index
         train_interactions = dataset.inter_matrix(form='coo').astype(np.float32)
@@ -153,6 +153,21 @@ class VLIF(GeneralRecommender):
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
         self.result_embed = nn.Parameter(nn.init.xavier_normal_(torch.tensor(np.random.randn(num_user + num_item, dim_x)))).to(self.device)
+
+        # CMS
+        cms_num_heads = 4
+        cms_hidden_dim = 256
+        cms_num_layers = 1
+        
+        self.CMS_encoder_layer = nn.TransformerEncoderLayer(
+            d_model=hidden_dim,
+            nhead=num_heads,
+            dim_feedforward=hidden_dim * 4,
+            dropout=0.1,
+            batch_first=True
+        )
+        self.cms = nn.TransformerEncoder(CMS_encoder_layer, num_layers=cms_num_layers)
+
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))

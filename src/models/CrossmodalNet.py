@@ -33,4 +33,4 @@ if __name__ == '__main__':
     encoder = CrossmodalNet(100)
     x1 = torch.tensor(torch.rand(32, 10, 100))
     x2 = torch.tensor(torch.rand(32, 10, 100))
-    print(encoder(x1, x2).shape)
+    print(encoder([x1, x2]).shape)

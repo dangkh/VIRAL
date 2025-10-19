@@ -9,15 +9,14 @@ class CrossmodalNet(nn.Module):
     def __init__(self, inchannels) -> None:
         super(CrossmodalNet, self).__init__()
 
-            self.vt_trans = TransformerEncoder(inchannels, num_heads= 4, layers=1)
-            self.vt_self = TransformerEncoder(inchannels, num_heads= 4, layers=1)
+        self.vt_trans = TransformerEncoder(inchannels, num_heads= 4, layers=1)
+        self.vt_self = TransformerEncoder(inchannels, num_heads= 4, layers=1)
 
-            self.tv_trans = TransformerEncoder(inchannels, num_heads= 4, layers=1)
-            self.tv_self = TransformerEncoder(inchannels, num_heads= 4, layers=1)
+        self.tv_trans = TransformerEncoder(inchannels, num_heads= 4, layers=1)
+        self.tv_self = TransformerEncoder(inchannels, num_heads= 4, layers=1)
 
         
     def forward(self, x_s):
-        
         for j in range(len(x_s)):
             x_s[j] = x_s[j].permute(1, 0, 2)
 

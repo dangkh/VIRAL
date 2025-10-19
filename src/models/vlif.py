@@ -155,18 +155,18 @@ class VLIF(GeneralRecommender):
         self.result_embed = nn.Parameter(nn.init.xavier_normal_(torch.tensor(np.random.randn(num_user + num_item, dim_x)))).to(self.device)
 
         # CMS
-        cms_num_heads = 4
-        cms_hidden_dim = 256
-        cms_num_layers = 1
+        # cms_num_heads = 4
+        # cms_hidden_dim = 256
+        # cms_num_layers = 1
         
-        self.CMS_encoder_layer = nn.TransformerEncoderLayer(
-            d_model=hidden_dim,
-            nhead=num_heads,
-            dim_feedforward=hidden_dim * 4,
-            dropout=0.1,
-            batch_first=True
-        )
-        self.cms = nn.TransformerEncoder(CMS_encoder_layer, num_layers=cms_num_layers)
+        # self.CMS_encoder_layer = nn.TransformerEncoderLayer(
+        #     d_model=hidden_dim,
+        #     nhead=num_heads,
+        #     dim_feedforward=hidden_dim * 4,
+        #     dropout=0.1,
+        #     batch_first=True
+        # )
+        # self.cms = nn.TransformerEncoder(CMS_encoder_layer, num_layers=cms_num_layers)
 
 
     def get_knn_adj_mat(self, mm_embeddings):

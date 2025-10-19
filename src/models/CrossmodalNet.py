@@ -30,7 +30,7 @@ class CrossmodalNet(nn.Module):
         return out0, out1
 
 if __name__ == '__main__':
-    CrossmodalNet(100)
+    encoder = CrossmodalNet(100)
     x1 = torch.tensor(torch.rand(32, 10, 100))
     x2 = torch.tensor(torch.rand(32, 10, 100))
     print(encoder(x1, x2).shape)

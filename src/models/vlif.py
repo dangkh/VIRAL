@@ -220,14 +220,16 @@ class VLIF(GeneralRecommender):
         neg_item_nodes += self.n_users
         representation = None
 
+        s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
+
         if self.v_feat is not None:
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
             representation = self.v_rep
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
+            s, _ = self.t_gcn(self.edge_index_dropt, self.edge_index, s_feat)
 
-        s, self.loss_s = self.cms([self.t_rep, self.v_rep])
-        s = self.adaptCMS(s)
+        # s = self.adaptCMS(s)
         # r = TBR(self.t_rep, self.v_rep)
         # v' = Proj(self.v_rep, r)
        
@@ -246,8 +248,9 @@ class VLIF(GeneralRecommender):
         user_repT = user_repT.unsqueeze(2)
 
         user_s = s[:self.num_user]
+        user_s = user_s.unsqueeze(2)
         user_rep = torch.cat((user_repV, user_repT, user_s), dim=2)
-        user_rep = self.weight_u.transpose(1,3)*user_rep
+        user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
         user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
 

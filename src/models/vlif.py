@@ -16,7 +16,7 @@ import torch_geometric
 from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
-from CrossmodalNet import CrossmodalNet
+from CrossModal import CrossmodalNet
 
 class VLIF(GeneralRecommender):
     def __init__(self, config, dataset):

@@ -50,9 +50,10 @@ class CrossmodalNet(nn.Module):
 
         out1 = self.tv_trans(x1, x0, x0)
         out1 = self.tv_self(out1)
+        out1 = out1.squeeze(0)
+        out2 = out2.squeeze(0)
         out = (out0 + out1) / 2
         loss = self.criterion(out0, out1)
-        out = out.squeeze(0)
         return out, loss
 
 if __name__ == '__main__':

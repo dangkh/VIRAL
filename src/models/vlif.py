@@ -54,7 +54,7 @@ class VLIF(GeneralRecommender):
         self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
-        self.synergy_weight = 0.1
+        self.synergy_weight = 0.001
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -157,7 +157,7 @@ class VLIF(GeneralRecommender):
 
         # CMS
         self.cms = CrossmodalNet(64)
-
+        self.adaptCMS = nn.Sequential( nn.Linear(64, 64), nn.ReLU())
         # TRB
 
         # trb_num_heads = 4
@@ -227,6 +227,7 @@ class VLIF(GeneralRecommender):
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
 
         s, self.loss_s = self.cms([self.t_rep, self.v_rep])
+        s = self.adaptCMS(s)
         # r = TBR(self.t_rep, self.v_rep)
         # v' = Proj(self.v_rep, r)
        

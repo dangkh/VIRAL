@@ -54,7 +54,7 @@ class VLIF(GeneralRecommender):
         self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
-        self.synergy_weight = 0.01
+        self.synergy_weight = 0.001
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()

@@ -233,23 +233,23 @@ class VLIF(GeneralRecommender):
        
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
-        item_rep = s[self.num_user:]
+        item_s = s[self.num_user:]
     
         ############################################ multi-modal information aggregation
-        # item_rep = torch.cat((item_repV, item_repT, item_s), dim=1)
+        item_rep = torch.cat((item_repV, item_repT, item_s), dim=1)
         item_rep = self.item_item(item_rep)
 
 
-        # user_repV = self.v_rep[:self.num_user]
-        # user_repV = user_repV.unsqueeze(2)
-        # user_repT = self.t_rep[:self.num_user]
-        # user_repT = user_repT.unsqueeze(2)
+        user_repV = self.v_rep[:self.num_user]
+        user_repV = user_repV.unsqueeze(2)
+        user_repT = self.t_rep[:self.num_user]
+        user_repT = user_repT.unsqueeze(2)
 
-        user_rep = s[:self.num_user]
-        # user_rep = torch.cat((user_repV, user_repT), dim=2)
-        # user_rep = self.weight_u.transpose(1,2)*user_rep
-        # # add synergy
-        # user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_s), dim=1)
+        user_s = s[:self.num_user]
+        user_rep = torch.cat((user_repV, user_repT), dim=2)
+        user_rep = self.weight_u.transpose(1,2)*user_rep
+        # add synergy
+        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_s), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
 
@@ -268,11 +268,11 @@ class VLIF(GeneralRecommender):
         user = interaction[0]
         pos_scores, neg_scores = self.forward(interaction)
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
-        # reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
-        # reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
+        reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
+        reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
 
-        # reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t)
-        # reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
+        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t)
+        reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
         reg_loss += self.synergy_weight * self.loss_s
         return loss_value + reg_loss
 

@@ -91,7 +91,7 @@ class VLIF(GeneralRecommender):
 
         # pdb.set_trace()
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_user, 2, 1), dtype=torch.float32, requires_grad=True)))
+            torch.tensor(np.random.randn(self.num_user, 3, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
         self.weight_i = nn.Parameter(nn.init.xavier_normal_(
@@ -246,10 +246,10 @@ class VLIF(GeneralRecommender):
         user_repT = user_repT.unsqueeze(2)
 
         user_s = s[:self.num_user]
-        user_rep = torch.cat((user_repV, user_repT), dim=2)
-        user_rep = self.weight_u.transpose(1,2)*user_rep
+        user_rep = torch.cat((user_repV, user_repT, user_s), dim=2)
+        user_rep = self.weight_u.transpose(1,3)*user_rep
         # add synergy
-        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_s), dim=1)
+        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
 

@@ -17,6 +17,8 @@ from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
 # from CrossModal import CrossmodalNet
+import math
+from transformer import TransformerEncoder
 
 class InfoNCELoss(nn.Module):
     def __init__(self, temperature=0.07):

@@ -54,6 +54,7 @@ class VLIF(GeneralRecommender):
         self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
+        self.synergy_weight = 0.01
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -225,17 +226,16 @@ class VLIF(GeneralRecommender):
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
 
-        print(self.t_rep.shape, self.v_rep.shape)
-        stop
-        # s, loss_s = self.cms([self.t_rep, self.v_rep])
+        s, self.loss_s = self.cms([self.t_rep, self.v_rep])
         # r = TBR(self.t_rep, self.v_rep)
         # v' = Proj(self.v_rep, r)
        
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
+        item_s = s[self.num_user:]
     
         ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repV, item_repT), dim=1)
+        item_rep = torch.cat((item_repV, item_repT, item_s), dim=1)
         item_rep = self.item_item(item_rep)
 
 
@@ -243,10 +243,12 @@ class VLIF(GeneralRecommender):
         user_repV = user_repV.unsqueeze(2)
         user_repT = self.t_rep[:self.num_user]
         user_repT = user_repT.unsqueeze(2)
+
+        user_s = s[:self.num_user]
         user_rep = torch.cat((user_repV, user_repT), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
-        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
+        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_s), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
 
@@ -270,6 +272,7 @@ class VLIF(GeneralRecommender):
 
         reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
+        reg_loss += self.synergy_weight * self.loss_s
         return loss_value + reg_loss
 
     def full_sort_predict(self, interaction):

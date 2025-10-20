@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from transformer import TransformerEncoder
+from .transformer import TransformerEncoder
 
 class InfoNCELoss(nn.Module):
     def __init__(self, temperature=0.07):

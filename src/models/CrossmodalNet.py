@@ -61,4 +61,4 @@ if __name__ == '__main__':
     x1 = torch.tensor(torch.rand(32, 64))
     x2 = torch.tensor(torch.rand(32, 64))
     out, ls = encoder([x1, x2])
-    print(out[0].shape)
+    print(out.shape)

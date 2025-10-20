@@ -227,7 +227,7 @@ class VLIF(GeneralRecommender):
             representation = self.v_rep
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
-            self.syn, self.s_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, s_feat)
+            self.syn, _ = self.t_gcn(self.edge_index_dropt, self.edge_index, s_feat)
 
         # s = self.adaptCMS(s)
         # r = TBR(self.t_rep, self.v_rep)
@@ -273,9 +273,8 @@ class VLIF(GeneralRecommender):
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
         reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
         reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
-        reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
 
-        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
+        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
         reg_loss += self.synergy_weight * self.loss_s
         return loss_value + reg_loss

@@ -16,7 +16,7 @@ import torch_geometric
 from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
-
+from CrossmodalNet import CrossmodalNet
 
 class VLIF(GeneralRecommender):
     def __init__(self, config, dataset):
@@ -155,18 +155,22 @@ class VLIF(GeneralRecommender):
         self.result_embed = nn.Parameter(nn.init.xavier_normal_(torch.tensor(np.random.randn(num_user + num_item, dim_x)))).to(self.device)
 
         # CMS
-        # cms_num_heads = 4
-        # cms_hidden_dim = 256
-        # cms_num_layers = 1
+        self.cms = CrossmodalNet(64)
+
+        # TRB
+
+        # trb_num_heads = 4
+        # trb_hidden_dim = 256
+        # trb_num_layers = 1
 
         # encoder_layer = nn.TransformerEncoderLayer(
-        #     d_model=hidden_dim,
-        #     nhead=num_heads,
-        #     dim_feedforward=hidden_dim * 4,
+        #     d_model=trb_hidden_dim,
+        #     nhead=trb_num_heads,
+        #     dim_feedforward=trb_hidden_dim * 4,
         #     dropout=0.1,
         #     batch_first=True
         # )
-        # self.cross_transformer = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+        # self.cross_transformer = nn.TransformerEncoder(encoder_layer, num_layers=trb_num_layers)
 
 
 
@@ -223,7 +227,7 @@ class VLIF(GeneralRecommender):
 
         print(self.t_rep.shape, self.v_rep.shape)
         stop
-        # s1, s2 = CMS([self.t_rep, self.v_rep])
+        # s, loss_s = self.cms([self.t_rep, self.v_rep])
         # r = TBR(self.t_rep, self.v_rep)
         # v' = Proj(self.v_rep, r)
        

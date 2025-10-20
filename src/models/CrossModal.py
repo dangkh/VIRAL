@@ -32,11 +32,11 @@ class CrossmodalNet(nn.Module):
     def __init__(self, inchannels) -> None:
         super(CrossmodalNet, self).__init__()
 
-        self.vt_trans = TransformerEncoder(inchannels, num_heads= 4, layers=1)
-        self.vt_self = TransformerEncoder(inchannels, num_heads= 4, layers=1)
+        self.vt_trans = TransformerEncoder(inchannels, num_heads= 1, layers=1)
+        self.vt_self = TransformerEncoder(inchannels, num_heads= 1, layers=1)
 
-        self.tv_trans = TransformerEncoder(inchannels, num_heads= 4, layers=1)
-        self.tv_self = TransformerEncoder(inchannels, num_heads= 4, layers=1)
+        self.tv_trans = TransformerEncoder(inchannels, num_heads= 1, layers=1)
+        self.tv_self = TransformerEncoder(inchannels, num_heads= 1, layers=1)
         self.criterion = InfoNCELoss(temperature=0.07)
 
         

@@ -238,7 +238,7 @@ class VLIF(GeneralRecommender):
         item_s = s[self.num_user:]
     
         ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repV, item_repT, item_s), dim=1)
+        item_rep = torch.cat((item_repV, item_s, item_repT), dim=1)
         item_rep = self.item_item(item_rep)
 
 
@@ -249,7 +249,7 @@ class VLIF(GeneralRecommender):
 
         user_s = s[:self.num_user]
         user_s = user_s.unsqueeze(2)
-        user_rep = torch.cat((user_repV, user_repT, user_s), dim=2)
+        user_rep = torch.cat((user_repV, user_s, user_repT), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
         user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)

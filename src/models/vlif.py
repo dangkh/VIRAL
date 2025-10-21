@@ -160,20 +160,6 @@ class VLIF(GeneralRecommender):
         # TRB
         self.trb = RedundantNet(384)
 
-        # trb_num_heads = 4
-        # trb_hidden_dim = 256
-        # trb_num_layers = 1
-
-        # encoder_layer = nn.TransformerEncoderLayer(
-        #     d_model=trb_hidden_dim,
-        #     nhead=trb_num_heads,
-        #     dim_feedforward=trb_hidden_dim * 4,
-        #     dropout=0.1,
-        #     batch_first=True
-        # )
-        # self.cross_transformer = nn.TransformerEncoder(encoder_layer, num_layers=trb_num_layers)
-
-
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))

@@ -61,7 +61,7 @@ class RedundantNet(nn.Module):
     def __init__(self, inchannels) -> None:
         super(RedundantNet, self).__init__()
 
-        self.fusion = TransformerEncoder(inchannels, num_heads= 4, layers=1)
+        self.fusion = TransformerEncoder(inchannels * 2, num_heads= 4, layers=1)
         self.criterion = InfoNCELoss(temperature=0.1)
 
         

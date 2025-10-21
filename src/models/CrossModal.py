@@ -4,6 +4,7 @@ import torch.nn.functional as F
 import math
 from .transformer import TransformerEncoder
 
+
 class InfoNCELoss(nn.Module):
     def __init__(self, temperature=0.07):
         super().__init__()
@@ -55,6 +56,38 @@ class CrossmodalNet(nn.Module):
         out = (out0 + out1) / 2
         loss = self.criterion(out0, out1)
         return out, loss
+
+class RedundantNet(nn.Module):
+    def __init__(self, inchannels) -> None:
+        super(RedundantNet, self).__init__()
+
+        self.fusion = TransformerEncoder(inchannels, num_heads= 4, layers=1)
+        self.criterion = InfoNCELoss(temperature=0.1)
+
+        
+    def forward(self, xt, xv):
+        zero_t = torch.zeros_like(xt)
+        zero_v = torch.zeros_like(xv)
+
+        zt = torch.cat((xt, zero_v), dim = -1)
+        zv = torch.cat((zero_t, xv), dim = -1)
+        zf = torch.cat((xt, xv), dim = -1)
+
+        out_t = self.fusion(zt)
+        out_v = self.fusion(zv)
+        out_f = self.fusion(zf)
+
+        out_t = out_t.squeeze(0)
+        out_v = out_v.squeeze(0)
+        out_f = out_f.squeeze(0)
+        
+        loss = self.criterion(out_t, out_f) + self.criterion(out_v, out_f) + self.criterion(out_t, out_v)
+        
+        dot_tr = torch.sum(xv * out_f, dim=-1, keepdim=True)   # (B, 1)
+        dot_rr = torch.sum(out_f * out_f, dim=-1, keepdim=True)   # (B, 1)
+        proj = (dot_vr / (dot_rr + 1e-8)) * out_f             # projection of t on out_f
+        v_prime = xv - proj  
+        return v_prime, loss
 
 if __name__ == '__main__':
     encoder = CrossmodalNet(64)

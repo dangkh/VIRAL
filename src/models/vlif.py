@@ -207,11 +207,11 @@ class VLIF(GeneralRecommender):
         representation = None
 
         s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
-        self.v_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
+        vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
 
         if self.v_feat is not None:
-            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
-            representation = self.v_rep
+            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vh_feat)
+            
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
             self.syn, _ = self.t_gcn(self.edge_index_dropt, self.edge_index, s_feat)

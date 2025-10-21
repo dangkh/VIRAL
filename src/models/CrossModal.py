@@ -66,12 +66,16 @@ class RedundantNet(nn.Module):
 
         
     def forward(self, xt, xv):
+        xt = xt.unsqueeze(0)
+        xv = xv.unsqueeze(0)
         zero_t = torch.zeros_like(xt)
         zero_v = torch.zeros_like(xv)
 
         zt = torch.cat((xt, zero_v), dim = -1)
         zv = torch.cat((zero_t, xv), dim = -1)
         zf = torch.cat((xt, xv), dim = -1)
+        print(zf.shape)
+        stop
 
         out_t = self.fusion(zt)
         out_v = self.fusion(zv)

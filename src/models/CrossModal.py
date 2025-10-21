@@ -85,7 +85,7 @@ class RedundantNet(nn.Module):
         
         loss = self.criterion(out_t, out_f) + self.criterion(out_v, out_f) + self.criterion(out_t, out_v)
         
-        dot_tr = torch.sum(xv * out_f, dim=-1, keepdim=True)   # (B, 1)
+        dot_vr = torch.sum(xv * out_f, dim=-1, keepdim=True)   # (B, 1)
         dot_rr = torch.sum(out_f * out_f, dim=-1, keepdim=True)   # (B, 1)
         proj = (dot_vr / (dot_rr + 1e-8)) * out_f             # projection of t on out_f
         v_prime = xv - proj  

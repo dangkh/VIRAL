@@ -63,7 +63,7 @@ class RedundantNet(nn.Module):
 
         self.fusion = TransformerEncoder(inchannels * 2, num_heads= 4, layers=1)
         self.criterion = InfoNCELoss(temperature=0.1)
-
+        self.ln = nn.Linear(384*2, 384)
         
     def forward(self, xt, xv):
         xt = xt.unsqueeze(0)
@@ -74,12 +74,10 @@ class RedundantNet(nn.Module):
         zt = torch.cat((xt, zero_v), dim = -1)
         zv = torch.cat((zero_t, xv), dim = -1)
         zf = torch.cat((xt, xv), dim = -1)
-        print(zf.shape)
-        stop
 
-        out_t = self.fusion(zt)
-        out_v = self.fusion(zv)
-        out_f = self.fusion(zf)
+        out_t = self.ln(self.fusion(zt))
+        out_v = self.ln(self.fusion(zv))
+        out_f = self.ln(self.fusion(zf))
 
         out_t = out_t.squeeze(0)
         out_v = out_v.squeeze(0)

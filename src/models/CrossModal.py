@@ -81,6 +81,8 @@ class RedundantNet(nn.Module):
         out_t = out_t.squeeze(0)
         out_v = out_v.squeeze(0)
         out_f = out_f.squeeze(0)
+
+        out_f = 1/3 * (out_f+out_t+out_v)
         
         loss = self.criterion(out_t, out_f) + self.criterion(out_v, out_f) 
         

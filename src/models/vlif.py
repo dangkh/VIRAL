@@ -16,7 +16,7 @@ import torch_geometric
 from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
-from .CrossModal import CrossmodalNet
+from .CrossModal import CrossmodalNet, RedundantNet
 
 class VLIF(GeneralRecommender):
     def __init__(self, config, dataset):
@@ -160,7 +160,7 @@ class VLIF(GeneralRecommender):
 
         # CMS
         self.cms = CrossmodalNet(384)
-        self.adaptCMS = nn.Linear(384, 384)
+        self.trb = RedundantNet(384)
         # TRB
 
         # trb_num_heads = 4
@@ -224,18 +224,14 @@ class VLIF(GeneralRecommender):
         representation = None
 
         s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
-
+        vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
         if self.v_feat is not None:
-            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
-            representation = self.v_rep
+            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vh_feat)
+        
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
 
-        # s = self.adaptCMS(s)
-        # r = TBR(self.t_rep, self.v_rep)
-        # v' = Proj(self.v_rep, r)
-       
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
         item_s = self.syn[self.num_user:]

@@ -276,7 +276,7 @@ class VLIF(GeneralRecommender):
 
         reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
-        reg_loss += self.synergy_weight * self.loss_s
+        reg_loss += self.synergy_weight * (self.loss_s+self.loss_r)
         return loss_value + reg_loss
 
     def full_sort_predict(self, interaction):

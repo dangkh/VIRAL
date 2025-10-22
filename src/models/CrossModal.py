@@ -82,7 +82,7 @@ class RedundantNet(nn.Module):
         out_v = out_v.squeeze(0)
         out_f = out_f.squeeze(0)
         
-        loss = self.criterion(out_t, out_f) + self.criterion(out_v, out_f) + self.criterion(out_t, out_v)
+        loss = self.criterion(out_t, out_f) + self.criterion(out_v, out_f) 
         
         xv = xv.squeeze(0)
         dot_vr = torch.sum(xv * out_f, dim=-1, keepdim=True)   # (B, 1)

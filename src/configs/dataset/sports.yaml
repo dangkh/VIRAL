@@ -9,13 +9,13 @@ load_meta_cols: [itemID, description, title, category]
 TEXT_ID_FIELD: description
 filter_out_cod_start_users: True
 
-inter_file_name: 'sports14-indexed-v4.inter'
-text_file_name: 'meta-sports-indexed.csv'
-img_dir_name: 'img'
+inter_file_name: 'sports.inter'
+# text_file_name: 'meta-sports-indexed.csv'
+# img_dir_name: 'img'
 
 # name of frozen features
 #vision_feature_file: 'image_feat-v1.npy'
-vision_feature_file: 'image_feat.npy'
+vision_feature_file: 'en_image_feat.npy'
 text_feature_file: 'text_feat-v1.npy'
 user_graph_dict_file: 'user_graph_dict.npy'
 

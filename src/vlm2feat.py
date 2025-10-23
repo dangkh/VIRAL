@@ -5,7 +5,7 @@ import json
 import pandas as pd
 import csv
 
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor, Gemma3ForConditionalGeneration
 from qwen_vl_utils import process_vision_info
 # import requests
 # from PIL import Image
@@ -190,19 +190,23 @@ with open("src/prompts.yaml", "r") as f:
 
 if cfg.vlmModel == 'qwen':
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-      "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto"
-    )
+      "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto")
     model = model.to(device)
     processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
 elif cfg.vlmModel == 'blip':
     pass
 elif cfg.vlmModel == 'gema':
-    pass
+    model_id = "google/gemma-3-4b-it"
+    model = Gemma3ForConditionalGeneration.from_pretrained(
+        model_id, device_map="auto")
+    model = model.to(device)
+    processor = AutoProcessor.from_pretrained(model_id)
+
 else:
     model_path = "lmms-lab/LLaVA-One-Vision-1.5-8B-Instruct"
     model = AutoModelForCausalLM.from_pretrained(
-        model_path, torch_dtype="auto", device_map="auto", trust_remote_code=True
-    )
+        model_path, torch_dtype="auto", device_map="auto", trust_remote_code=True)
+    model = model.to(device)
     processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
 
 

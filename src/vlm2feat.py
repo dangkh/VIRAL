@@ -268,7 +268,6 @@ for asin in tqdm(unique_asin):
             asin_descriptions[asin] = nan
     else:
         asin_descriptions[asin] = nan # ASIN not found in downloaded images
-    stop
     if len(asin_descriptions) % 100 == 0:
         # Convert the results to a list of tuples for writing to CSV
         amazon_res = [(asin, desc) for asin, desc in asin_descriptions.items()]

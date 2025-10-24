@@ -31,7 +31,10 @@ link5cores = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/
 
 datasets = ["baby", "sport", "cloth"]
 
-def load_image_from_url(url: str) -> Image.Image:
+def load_image_from_path(path: str) -> Image.Image:
+    return Image.open(path).convert("RGB")
+
+def load_image_from_url(url: str, link = True) -> Image.Image:
     response = requests.get(url)
     response.raise_for_status()
     return Image.open(BytesIO(response.content)).convert("RGB")
@@ -92,7 +95,7 @@ def getDescribe_unsloth(vlmModel, tokenizer, link = None, title = None, cfg = No
         {"type": "text", "text": myPrompt}
     ]}
     ]
-    image = load_image_from_url(link)
+    image = load_image_from_path(link)
     input_text = tokenizer.apply_chat_template(messages, add_generation_prompt = True)
     inputs = tokenizer(image, input_text, add_special_tokens = False, return_tensors = "pt").to(model.device)
     output = vlmModel.generate(**inputs, max_new_tokens=256, temperature=0.1, do_sample=False,)
@@ -257,7 +260,6 @@ for asin in tqdm(unique_asin):
             else:
                 description = getDescribe_unsloth(model, tok, image_path, title, cfg, all_prompts)
                 print(description)
-                stop
             
             asin_descriptions[asin] = description[0] if description else nan
             counter += 1
@@ -266,6 +268,7 @@ for asin in tqdm(unique_asin):
             asin_descriptions[asin] = nan
     else:
         asin_descriptions[asin] = nan # ASIN not found in downloaded images
+    stop
     if len(asin_descriptions) % 100 == 0:
         # Convert the results to a list of tuples for writing to CSV
         amazon_res = [(asin, desc) for asin, desc in asin_descriptions.items()]

@@ -89,7 +89,7 @@ def getDescribe_unsloth(vlmModel, tokenizer, link = None, title = None, cfg = No
     messages = [
     {"role": "user", "content": [
         {"type": "image"},
-        {"type": "text", "text": instruction}
+        {"type": "text", "text": myPrompt}
     ]}
     ]
     image = load_image_from_url(link)
@@ -252,7 +252,7 @@ for asin in tqdm(unique_asin):
             product_row = metaDF_filtered[metaDF_filtered['asin'] == asin]
             title = product_row['title'].iloc[0]
             description = product_row['description'].iloc[0]
-            if cfg.vlmModel in ['qwen', 'lava']
+            if cfg.vlmModel in ['qwen', 'lava']:
                 description = getDescribe(model, processor, image_path, title, cfg, all_prompts)
             else:
                 description = getDescribe_unsloth(model, tok, image_path, title, cfg, all_prompts)

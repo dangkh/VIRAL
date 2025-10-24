@@ -257,11 +257,11 @@ for asin in tqdm(unique_asin):
             description = product_row['description'].iloc[0]
             if cfg.vlmModel in ['qwen', 'lava']:
                 description = getDescribe(model, processor, image_path, title, cfg, all_prompts)
+                asin_descriptions[asin] = description[0] if description else nan
             else:
                 description = getDescribe_unsloth(model, tok, image_path, title, cfg, all_prompts)
                 print(description)
-            
-            asin_descriptions[asin] = description[0] if description else nan
+                asin_descriptions[asin] = description if description else nan
             counter += 1
         except Exception as e:
             print(f"Error processing ASIN {asin}: {e}")

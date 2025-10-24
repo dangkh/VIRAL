@@ -7,9 +7,10 @@ import csv
 
 from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor, Gemma3ForConditionalGeneration
 from qwen_vl_utils import process_vision_info
-# import requests
-# from PIL import Image
-# from transformers import BlipProcessor, BlipForConditionalGeneration
+import requests
+from PIL import Image
+from io import BytesIO
+from unsloth import FastVisionModel
 import gzip
 import ast
 from config import TrainConfig 
@@ -30,7 +31,10 @@ link5cores = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/
 
 datasets = ["baby", "sport", "cloth"]
 
-
+def load_image_from_url(url: str) -> Image.Image:
+    response = requests.get(url)
+    response.raise_for_status()
+    return Image.open(BytesIO(response.content)).convert("RGB")
 
 def getDescribe(vlmModel, processor, link = None, title = None, cfg = None, all_prompts = None):
     if cfg.template == 'title':
@@ -77,6 +81,24 @@ def getDescribe(vlmModel, processor, link = None, title = None, cfg = None, all_
     )
     return output_text
 
+def getDescribe_unsloth(vlmModel, tokenizer, link = None, title = None, cfg = None, all_prompts = None):
+    if cfg.template == 'title':
+        myPrompt = all_prompts['vlm']['title'].format(title)
+    else:
+        myPrompt = all_prompts['vlm']['plain']
+    messages = [
+    {"role": "user", "content": [
+        {"type": "image"},
+        {"type": "text", "text": instruction}
+    ]}
+    ]
+    image = load_image_from_url(link)
+    input_text = tokenizer.apply_chat_template(messages, add_generation_prompt = True)
+    inputs = tokenizer(image, input_text, add_special_tokens = False, return_tensors = "pt").to(model.device)
+    output = vlmModel.generate(**inputs, max_new_tokens=256, temperature=0.1, do_sample=False,)
+    generated_tokens = output[0][inputs["input_ids"].shape[-1]:]
+    output_text = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+    return output_text
 
 cfg = TrainConfig()
 print(cfg)
@@ -193,14 +215,20 @@ if cfg.vlmModel == 'qwen':
       "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto")
     model = model.to(device)
     processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
-elif cfg.vlmModel == 'blip':
-    pass
+elif cfg.vlmModel == 'lama':
+    model_id = "unsloth/Llama-3.2-11B-Vision-Instruct"
+    model, tok = FastVisionModel.from_pretrained(
+        model_id,
+        load_in_4bit = True, # Use 4bit to reduce memory use. False for 16bit LoRA.
+        use_gradient_checkpointing = "unsloth", # True or "unsloth" for long context
+        )
 elif cfg.vlmModel == 'gema':
-    model_id = "google/gemma-3-4b-it"
-    model = Gemma3ForConditionalGeneration.from_pretrained(
-        model_id, device_map="auto")
-    model = model.to(device)
-    processor = AutoProcessor.from_pretrained(model_id)
+    model_id = "unsloth/gemma-3-4b-it"
+    model, tok = FastVisionModel.from_pretrained(
+        model_id,
+        load_in_4bit = True, # Use 4bit to reduce memory use. False for 16bit LoRA.
+        use_gradient_checkpointing = "unsloth", # True or "unsloth" for long context
+        )
 
 else:
     model_path = "lmms-lab/LLaVA-One-Vision-1.5-8B-Instruct"
@@ -224,7 +252,12 @@ for asin in tqdm(unique_asin):
             product_row = metaDF_filtered[metaDF_filtered['asin'] == asin]
             title = product_row['title'].iloc[0]
             description = product_row['description'].iloc[0]
-            description = getDescribe(model, processor, image_path, title, cfg, all_prompts)
+            if cfg.vlmModel in ['qwen', 'lava']
+                description = getDescribe(model, processor, image_path, title, cfg, all_prompts)
+            else:
+                description = getDescribe_unsloth(model, tok, image_path, title, cfg, all_prompts)
+                print(description)
+                stop
             
             asin_descriptions[asin] = description[0] if description else nan
             counter += 1

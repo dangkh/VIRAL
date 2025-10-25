@@ -240,8 +240,14 @@ else:
     model = model.to(device)
     processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
 
+if os.path.exists(amazon_output_filename):
+    amazon_output_filename = f'./data/{cfg.data}/amazon_{cfg.data}_model_{cfg.vlmModel}_type_{cfg.template}_descriptions.csv'
+    with open(amazon_output_filename, 'r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            asin_descriptions[row['asin']] = row['description']
 
-
+    print(f"Loaded {len(asin_descriptions)} ASINs from {amazon_output_filename}")
 
 counter = 0
 

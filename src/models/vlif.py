@@ -16,7 +16,7 @@ import torch_geometric
 from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
-from .CrossModal import CrossmodalNet
+from .CrossModal import CrossmodalNet, RedundantNet
 
 class VLIF(GeneralRecommender):
     def __init__(self, config, dataset):
@@ -160,23 +160,9 @@ class VLIF(GeneralRecommender):
 
         # CMS
         self.cms = CrossmodalNet(384)
-        self.adaptCMS = nn.Linear(384, 384)
+        self.trb = RedundantNet(384)
         # TRB
-
-        # trb_num_heads = 4
-        # trb_hidden_dim = 256
-        # trb_num_layers = 1
-
-        # encoder_layer = nn.TransformerEncoderLayer(
-        #     d_model=trb_hidden_dim,
-        #     nhead=trb_num_heads,
-        #     dim_feedforward=trb_hidden_dim * 4,
-        #     dropout=0.1,
-        #     batch_first=True
-        # )
-        # self.cross_transformer = nn.TransformerEncoder(encoder_layer, num_layers=trb_num_layers)
-
-
+    
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))
@@ -224,24 +210,21 @@ class VLIF(GeneralRecommender):
         representation = None
 
         s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
+        vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
 
         if self.v_feat is not None:
-            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
-            representation = self.v_rep
+            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vh_feat)
+            
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
-
-        # s = self.adaptCMS(s)
-        # r = TBR(self.t_rep, self.v_rep)
-        # v' = Proj(self.v_rep, r)
        
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
         item_s = self.syn[self.num_user:]
     
         ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repV, item_s, item_repT), dim=1)
+        item_rep = torch.cat((item_repT, item_s, item_repV), dim=1)
         item_rep = self.item_item(item_rep)
 
 
@@ -252,7 +235,7 @@ class VLIF(GeneralRecommender):
 
         user_s = self.syn[:self.num_user]
         user_s = user_s.unsqueeze(2)
-        user_rep = torch.cat((user_repV, user_s, user_repT), dim=2)
+        user_rep = torch.cat((user_repT, user_s, user_repV), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
         user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
@@ -280,7 +263,7 @@ class VLIF(GeneralRecommender):
 
         reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
-        reg_loss += self.synergy_weight * self.loss_s
+        reg_loss += self.synergy_weight * (self.loss_s + self.loss_r)
         return loss_value + reg_loss
 
     def full_sort_predict(self, interaction):

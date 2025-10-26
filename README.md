@@ -67,9 +67,10 @@ python src/generate-u-u-matrix.py -d=baby
 ```
 
 ### 3. Training
-
-
-
+Edit config at src/config.py
+```sh
+python src/main.py -d=baby
+```
 
 
 

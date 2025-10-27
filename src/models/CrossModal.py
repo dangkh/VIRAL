@@ -90,7 +90,7 @@ class RedundantNet(nn.Module):
         dot_vr = torch.sum(xv * out_f, dim=-1, keepdim=True)   # (B, 1)
         dot_rr = torch.sum(out_f * out_f, dim=-1, keepdim=True)   # (B, 1)
         proj = (dot_vr / (dot_rr + 1e-8)) * out_f             # projection of t on out_f
-        v_prime = xv - proj  
+        v_prime = F.normalize(xv - proj, p=2, dim=1)
         return v_prime, loss    
 
 if __name__ == '__main__':

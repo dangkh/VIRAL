@@ -87,7 +87,5 @@ Data could be download from: [Baby/Sports/Clothing](https://drive.google.com/dri
 ```
 here
 ```
-Result baby: recall@5: 0.0430    recall@10: 0.0705    recall@20: 0.1083    recall@50: 0.1772    ndcg@5: 0.0288    ndcg@10: 0.0378    ndcg@20: 0.0474    ndcg@50: 0.0614    precision@5: 0.0095    precision@10: 0.0078    precision@20: 0.0060    precision@50: 0.0040    map@5: 0.0233    map@10: 0.0269    map@20: 0.0295    map@50: 0.0317
-
 
 This repo is implemented based on work of DRAGON: https://github.com/hongyurain/DRAGON

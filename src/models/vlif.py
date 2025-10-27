@@ -354,7 +354,7 @@ class GCN(torch.nn.Module):
                 gain=1).to(self.device))
             if self.num_layer == 2:
                 self.MLP = nn.Linear(self.dim_feat, 4*self.dim_latent)
-                self.MLP1 = nn.Linear(4*self.dim_feat, self.dim_latent)
+                self.MLP_1 = nn.Linear(4*self.dim_latent, self.dim_latent)
             else:
                 self.MLP = nn.Linear(self.dim_feat, self.dim_latent)
             self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)

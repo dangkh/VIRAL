@@ -47,6 +47,7 @@ Place required files:
 ```
 baby: gdown https://drive.google.com/uc?id=1_WKB112C095iHn8djsGCKYmhrdv0xtVS
 ```
+Samples are provided
 
 Example with the "baby" dataset, using the "title" column to replace nan field:
 ```sh
@@ -66,24 +67,27 @@ Example with the "baby" dataset
 python src/generate-u-u-matrix.py -d=baby
 ```
 
+Full PID (synergy + redundant) is located at redu2 branch, but we suggest run synergy (master branch) only, that offer stable result and faster :D
+
 ### 3. Training
-
-
-
+Edit config at src/config.py
+```sh
+python src/main.py -d=baby
+```
 
 
 
 
 
 ## Data
-Data could be download from: [Baby/Sports/Clothing]()  
+Data could be download from: [Baby/Sports/Clothing](https://drive.google.com/drive/u/4/folders/14uEOz_roDoHV8OB4fq8hXpLIfVQofGbT)  
 
 
 #### Please consider to cite our paper if this model helps you, thanks:
 ```
 here
 ```
-
+Result baby: recall@5: 0.0430    recall@10: 0.0705    recall@20: 0.1083    recall@50: 0.1772    ndcg@5: 0.0288    ndcg@10: 0.0378    ndcg@20: 0.0474    ndcg@50: 0.0614    precision@5: 0.0095    precision@10: 0.0078    precision@20: 0.0060    precision@50: 0.0040    map@5: 0.0233    map@10: 0.0269    map@20: 0.0295    map@50: 0.0317
 
 
 This repo is implemented based on work of DRAGON: https://github.com/hongyurain/DRAGON

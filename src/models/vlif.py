@@ -16,7 +16,7 @@ import torch_geometric
 from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
-
+from .CrossModal import CrossmodalNet
 
 class VLIF(GeneralRecommender):
     def __init__(self, config, dataset):
@@ -54,6 +54,7 @@ class VLIF(GeneralRecommender):
         self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
+        self.synergy_weight = 0.001
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -90,7 +91,7 @@ class VLIF(GeneralRecommender):
 
         # pdb.set_trace()
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_user, 2, 1), dtype=torch.float32, requires_grad=True)))
+            torch.tensor(np.random.randn(self.num_user, 3, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
         self.weight_i = nn.Parameter(nn.init.xavier_normal_(
@@ -149,24 +150,32 @@ class VLIF(GeneralRecommender):
             self.t_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
                          num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
                          device=self.device, features=self.t_feat)
+            self.s_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
+                         num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
+                         device=self.device, features=self.t_feat)
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
         self.result_embed = nn.Parameter(nn.init.xavier_normal_(torch.tensor(np.random.randn(num_user + num_item, dim_x)))).to(self.device)
 
         # CMS
-        # cms_num_heads = 4
-        # cms_hidden_dim = 256
-        # cms_num_layers = 1
-        
-        # self.CMS_encoder_layer = nn.TransformerEncoderLayer(
-        #     d_model=hidden_dim,
-        #     nhead=num_heads,
-        #     dim_feedforward=hidden_dim * 4,
+        self.cms = CrossmodalNet(384)
+        self.adaptCMS = nn.Linear(384, 384)
+        # TRB
+
+        # trb_num_heads = 4
+        # trb_hidden_dim = 256
+        # trb_num_layers = 1
+
+        # encoder_layer = nn.TransformerEncoderLayer(
+        #     d_model=trb_hidden_dim,
+        #     nhead=trb_num_heads,
+        #     dim_feedforward=trb_hidden_dim * 4,
         #     dropout=0.1,
         #     batch_first=True
         # )
-        # self.cms = nn.TransformerEncoder(CMS_encoder_layer, num_layers=cms_num_layers)
+        # self.cross_transformer = nn.TransformerEncoder(encoder_layer, num_layers=trb_num_layers)
+
 
 
     def get_knn_adj_mat(self, mm_embeddings):
@@ -214,22 +223,25 @@ class VLIF(GeneralRecommender):
         neg_item_nodes += self.n_users
         representation = None
 
+        s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
+
         if self.v_feat is not None:
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
             representation = self.v_rep
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
+            self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
 
-
-        # s1, s2 = CMS(self.t_rep, self.v_rep)
+        # s = self.adaptCMS(s)
         # r = TBR(self.t_rep, self.v_rep)
         # v' = Proj(self.v_rep, r)
        
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
+        item_s = self.syn[self.num_user:]
     
         ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repV, item_repT), dim=1)
+        item_rep = torch.cat((item_repV, item_s, item_repT), dim=1)
         item_rep = self.item_item(item_rep)
 
 
@@ -237,9 +249,13 @@ class VLIF(GeneralRecommender):
         user_repV = user_repV.unsqueeze(2)
         user_repT = self.t_rep[:self.num_user]
         user_repT = user_repT.unsqueeze(2)
-        user_rep = torch.cat((user_repV, user_repT), dim=2)
+
+        user_s = self.syn[:self.num_user]
+        user_s = user_s.unsqueeze(2)
+        user_rep = torch.cat((user_repV, user_s, user_repT), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
-        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
+        # add synergy
+        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
 
@@ -260,9 +276,11 @@ class VLIF(GeneralRecommender):
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
         reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
         reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
+        reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
 
-        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t)
+        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
+        reg_loss += self.synergy_weight * self.loss_s
         return loss_value + reg_loss
 
     def full_sort_predict(self, interaction):
@@ -351,7 +369,8 @@ class GCN(torch.nn.Module):
             self.preference = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
                 np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
                 gain=1).to(self.device))
-            self.MLP = nn.Linear(self.dim_feat, self.dim_latent)
+            self.MLP = nn.Linear(self.dim_feat, 4*self.dim_latent)
+            self.MLP_1 = nn.Linear(4*self.dim_latent, self.dim_latent)
             self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
 
         else:
@@ -361,7 +380,8 @@ class GCN(torch.nn.Module):
             self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
 
     def forward(self, edge_index_drop,edge_index,features):
-        temp_features = F.leaky_relu(self.MLP(features)) if self.dim_latent else features
+        # temp_features = F.leaky_relu(self.MLP(features)) if self.dim_latent else features
+        temp_features = self.MLP_1(F.leaky_relu(self.MLP(features))) if self.dim_latent else features
         x = torch.cat((self.preference, temp_features), dim=0).to(self.device)
         x = F.normalize(x).to(self.device)
         h = self.conv_embed_1(x, edge_index)  # equation 1

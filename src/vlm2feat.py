@@ -5,11 +5,12 @@ import json
 import pandas as pd
 import csv
 
-from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor
+from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor, Gemma3ForConditionalGeneration
 from qwen_vl_utils import process_vision_info
-# import requests
-# from PIL import Image
-# from transformers import BlipProcessor, BlipForConditionalGeneration
+import requests
+from PIL import Image
+from io import BytesIO
+from unsloth import FastVisionModel
 import gzip
 import ast
 from config import TrainConfig 
@@ -30,7 +31,13 @@ link5cores = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/
 
 datasets = ["baby", "sport", "cloth"]
 
+def load_image_from_path(path: str) -> Image.Image:
+    return Image.open(path).convert("RGB")
 
+def load_image_from_url(url: str, link = True) -> Image.Image:
+    response = requests.get(url)
+    response.raise_for_status()
+    return Image.open(BytesIO(response.content)).convert("RGB")
 
 def getDescribe(vlmModel, processor, link = None, title = None, cfg = None, all_prompts = None):
     if cfg.template == 'title':
@@ -77,6 +84,24 @@ def getDescribe(vlmModel, processor, link = None, title = None, cfg = None, all_
     )
     return output_text
 
+def getDescribe_unsloth(vlmModel, tokenizer, link = None, title = None, cfg = None, all_prompts = None):
+    if cfg.template == 'title':
+        myPrompt = all_prompts['vlm']['title'].format(title)
+    else:
+        myPrompt = all_prompts['vlm']['plain']
+    messages = [
+    {"role": "user", "content": [
+        {"type": "image"},
+        {"type": "text", "text": myPrompt}
+    ]}
+    ]
+    image = load_image_from_path(link)
+    input_text = tokenizer.apply_chat_template(messages, add_generation_prompt = True)
+    inputs = tokenizer(image, input_text, add_special_tokens = False, return_tensors = "pt").to(model.device)
+    output = vlmModel.generate(**inputs, max_new_tokens=256, temperature=0.1, do_sample=False,)
+    generated_tokens = output[0][inputs["input_ids"].shape[-1]:]
+    output_text = tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+    return output_text
 
 cfg = TrainConfig()
 print(cfg)
@@ -190,23 +215,39 @@ with open("src/prompts.yaml", "r") as f:
 
 if cfg.vlmModel == 'qwen':
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-      "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto"
-    )
+      "Qwen/Qwen2.5-VL-3B-Instruct", torch_dtype="auto", device_map="auto")
     model = model.to(device)
     processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-3B-Instruct")
-elif cfg.vlmModel == 'blip':
-    pass
+elif cfg.vlmModel == 'lama':
+    model_id = "unsloth/Llama-3.2-11B-Vision-Instruct"
+    model, tok = FastVisionModel.from_pretrained(
+        model_id,
+        load_in_4bit = True, # Use 4bit to reduce memory use. False for 16bit LoRA.
+        use_gradient_checkpointing = "unsloth", # True or "unsloth" for long context
+        )
 elif cfg.vlmModel == 'gema':
-    pass
+    model_id = "unsloth/gemma-3-4b-it"
+    model, tok = FastVisionModel.from_pretrained(
+        model_id,
+        load_in_4bit = True, # Use 4bit to reduce memory use. False for 16bit LoRA.
+        use_gradient_checkpointing = "unsloth", # True or "unsloth" for long context
+        )
+
 else:
     model_path = "lmms-lab/LLaVA-One-Vision-1.5-8B-Instruct"
     model = AutoModelForCausalLM.from_pretrained(
-        model_path, torch_dtype="auto", device_map="auto", trust_remote_code=True
-    )
+        model_path, torch_dtype="auto", device_map="auto", trust_remote_code=True)
+    model = model.to(device)
     processor = AutoProcessor.from_pretrained(model_path, trust_remote_code=True)
 
+amazon_output_filename = f'./data/{cfg.data}/amazon_{cfg.data}_model_{cfg.vlmModel}_type_{cfg.template}_descriptions.csv'
+if os.path.exists(amazon_output_filename):
+    with open(amazon_output_filename, 'r', newline='') as csvfile:
+        reader = csv.DictReader(csvfile)
+        for row in reader:
+            asin_descriptions[row['asin']] = row['description']
 
-
+    print(f"Loaded {len(asin_descriptions)} ASINs from {amazon_output_filename}")
 
 counter = 0
 
@@ -220,9 +261,13 @@ for asin in tqdm(unique_asin):
             product_row = metaDF_filtered[metaDF_filtered['asin'] == asin]
             title = product_row['title'].iloc[0]
             description = product_row['description'].iloc[0]
-            description = getDescribe(model, processor, image_path, title, cfg, all_prompts)
-            
-            asin_descriptions[asin] = description[0] if description else nan
+            if cfg.vlmModel in ['qwen', 'lava']:
+                description = getDescribe(model, processor, image_path, title, cfg, all_prompts)
+                asin_descriptions[asin] = description[0] if description else nan
+            else:
+                description = getDescribe_unsloth(model, tok, image_path, title, cfg, all_prompts)
+                print(description)
+                asin_descriptions[asin] = description if description else nan
             counter += 1
         except Exception as e:
             print(f"Error processing ASIN {asin}: {e}")

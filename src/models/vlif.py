@@ -54,7 +54,7 @@ class VLIF(GeneralRecommender):
         self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
-        self.synergy_weight = 0.001
+        self.synergy_weight = 0.01
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -352,8 +352,7 @@ class GCN(torch.nn.Module):
             self.preference = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
                 np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
                 gain=1).to(self.device))
-            self.MLP = nn.Linear(self.dim_feat, 4*self.dim_latent)
-            self.MLP_1 = nn.Linear(4*self.dim_latent, self.dim_latent)
+            self.MLP = nn.Linear(self.dim_feat, self.dim_latent)
             self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
 
         else:
@@ -363,8 +362,8 @@ class GCN(torch.nn.Module):
             self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
 
     def forward(self, edge_index_drop,edge_index,features):
-        # temp_features = F.leaky_relu(self.MLP(features)) if self.dim_latent else features
-        temp_features = self.MLP_1(F.leaky_relu(self.MLP(features))) if self.dim_latent else features
+        temp_features = F.leaky_relu(self.MLP(features)) if self.dim_latent else features
+        # temp_features = self.MLP_1(F.leaky_relu(self.MLP(features))) if self.dim_latent else features
         x = torch.cat((self.preference, temp_features), dim=0).to(self.device)
         x = F.normalize(x).to(self.device)
         h = self.conv_embed_1(x, edge_index)  # equation 1

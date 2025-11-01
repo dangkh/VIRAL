@@ -74,13 +74,13 @@ class VLIF(GeneralRecommender):
         if self.v_feat is not None:
             indices, image_adj = self.get_knn_adj_mat(self.image_embedding.weight.detach())
             self.mm_adj = image_adj
-        if self.t_feat is not None:
-            indices, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
-            self.mm_adj = text_adj
-        if self.v_feat is not None and self.t_feat is not None:
-            self.mm_adj = self.mm_image_weight * image_adj + (1.0 - self.mm_image_weight) * text_adj
-            del text_adj
-            del image_adj
+        # if self.t_feat is not None:
+        #     indices, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
+        #     self.mm_adj = text_adj
+        # if self.v_feat is not None and self.t_feat is not None:
+        #     self.mm_adj = self.mm_image_weight * image_adj + (1.0 - self.mm_image_weight) * text_adj
+        #     del text_adj
+        #     del image_adj
         torch.save(self.mm_adj, mm_adj_file)
 
         # packing interaction in training into edge_index
@@ -91,12 +91,12 @@ class VLIF(GeneralRecommender):
 
         # pdb.set_trace()
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_user, 3, 1), dtype=torch.float32, requires_grad=True)))
+            torch.tensor(np.random.randn(self.num_user, 2, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
-        self.weight_i = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_item, 2, 1), dtype=torch.float32, requires_grad=True)))
-        self.weight_i.data = F.softmax(self.weight_i, dim=1)
+        # self.weight_i = nn.Parameter(nn.init.xavier_normal_(
+        #     torch.tensor(np.random.randn(self.num_item, 2, 1), dtype=torch.float32, requires_grad=True)))
+        # self.weight_i.data = F.softmax(self.weight_i, dim=1)
 
         self.item_index = torch.zeros([self.num_item], dtype=torch.long)
         index = []
@@ -223,13 +223,13 @@ class VLIF(GeneralRecommender):
         neg_item_nodes += self.n_users
         representation = None
 
-        s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
+        s_feat, self.loss_s = self.cms([self.v_feat, self.v_feat])
 
         if self.v_feat is not None:
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
             representation = self.v_rep
         if self.t_feat is not None:
-            self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
+            # self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
 
         # s = self.adaptCMS(s)
@@ -237,25 +237,25 @@ class VLIF(GeneralRecommender):
         # v' = Proj(self.v_rep, r)
        
         item_repV = self.v_rep[self.num_user:]
-        item_repT = self.t_rep[self.num_user:]
+        # item_repT = self.t_rep[self.num_user:]
         item_s = self.syn[self.num_user:]
     
         ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repV, item_s, item_repT), dim=1)
+        item_rep = torch.cat((item_repV, item_s), dim=1)
         item_rep = self.item_item(item_rep)
 
 
         user_repV = self.v_rep[:self.num_user]
         user_repV = user_repV.unsqueeze(2)
-        user_repT = self.t_rep[:self.num_user]
-        user_repT = user_repT.unsqueeze(2)
+        # user_repT = self.t_rep[:self.num_user]
+        # user_repT = user_repT.unsqueeze(2)
 
         user_s = self.syn[:self.num_user]
         user_s = user_s.unsqueeze(2)
-        user_rep = torch.cat((user_repV, user_s, user_repT), dim=2)
+        user_rep = torch.cat((user_repV, user_s), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
-        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
+        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
 
@@ -275,12 +275,12 @@ class VLIF(GeneralRecommender):
         pos_scores, neg_scores = self.forward(interaction)
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
         reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
-        reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
+        # reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
         reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
 
-        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
+        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
-        reg_loss += self.synergy_weight * self.loss_s
+        # reg_loss += self.synergy_weight * self.loss_s
         return loss_value + reg_loss
 
     def full_sort_predict(self, interaction):

@@ -24,12 +24,14 @@ print(device)
 
 linkmeta = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Baby.json.gz",
 "https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Sports_and_Outdoors.json.gz",
-"https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Clothing_Shoes_and_Jewelry.json.gz"]
+"https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Clothing_Shoes_and_Jewelry.json.gz",
+"https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/meta_Books.json.gz"]
 link5cores = ["https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Baby_5.json.gz",
 "https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Sports_and_Outdoors_5.json.gz",
-"https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Clothing_Shoes_and_Jewelry_5.json.gz"]
+"https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Clothing_Shoes_and_Jewelry_5.json.gz",
+"https://snap.stanford.edu/data/amazon/productGraph/categoryFiles/reviews_Books_5.json.gz"]
 
-datasets = ["baby", "sport", "cloth"]
+datasets = ["baby", "sport", "cloth", "book"]
 
 def load_image_from_path(path: str) -> Image.Image:
     return Image.open(path).convert("RGB")
@@ -104,6 +106,7 @@ def getDescribe_unsloth(vlmModel, tokenizer, link = None, title = None, cfg = No
     return output_text
 
 cfg = TrainConfig()
+cfg.data = "book"
 print(cfg)
 
 # CRAWLING DATA
@@ -158,7 +161,7 @@ print(review5DF.columns)
 
 unique_asin = review5DF['asin'].unique()
 print(f"Number of unique ASINs: {len(unique_asin)}")
-
+stop
 location = f"./data/{cfg.data}/{cfg.data}_product_images"
 
 counter = 0

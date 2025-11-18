@@ -1,8 +1,8 @@
-# VLIF
-Pytorch implementation for "Enhancing Multimodal Recommendations with Vision-Language Models and Information-Aware Fusion" [arxiv](https://arxiv.org/pdf/.pdf)
+# VIRAL
+Pytorch implementation for "Enhancing Multimodal Recommendations with Vision-Language Models and Information-Aware Fusion" [arxiv](https://arxiv.org/abs/2511.02113)
 
 ```
-VLIF/
+VIRAL/
 │
 ├── data/
 │   └── <dataset_name>/

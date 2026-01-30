@@ -405,19 +405,24 @@ class Base_gcn(MessagePassing):
             # edge_index, _ = add_self_loops(edge_index, num_nodes=x.size(0))
         x = x.unsqueeze(-1) if x.dim() == 1 else x
         
-        # Compute normalization coefficients
-        row, col = edge_index
-        deg = degree(row, x.size(0), dtype=x.dtype)
-        deg_inv_sqrt = deg.pow(-0.5)
-        deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
-        norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+        # Compute normalization coefficients for 'add' aggregation
+        if self.aggr == 'add':
+            row, col = edge_index
+            deg = degree(row, x.size(0), dtype=x.dtype)
+            deg_inv_sqrt = deg.pow(-0.5)
+            deg_inv_sqrt[deg_inv_sqrt == float('inf')] = 0
+            norm = deg_inv_sqrt[row] * deg_inv_sqrt[col]
+        else:
+            norm = None
         
         # pdb.set_trace()
         return self.propagate(edge_index, size=(x.size(0), x.size(0)), x=x, norm=norm)
 
     def message(self, x_j, norm):
-        # Normalize node features by edge
-        return norm.view(-1, 1) * x_j
+        # Normalize node features by edge for 'add' aggregation
+        if norm is not None:
+            return norm.view(-1, 1) * x_j
+        return x_j
 
     def update(self, aggr_out):
         return aggr_out

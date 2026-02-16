@@ -16,7 +16,7 @@ import torch_geometric
 from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
-from .CrossModal import CrossmodalNet
+from .CrossModal import CrossmodalNet, RedundantNet
 
 class VLIF(GeneralRecommender):
     def __init__(self, config, dataset):
@@ -151,9 +151,10 @@ class VLIF(GeneralRecommender):
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
+        # cms
         self.cms = CrossmodalNet(384)
-        self.adaptCMS = nn.Linear(384, 384)
         # TRB
+        self.trb = RedundantNet(384)
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))
@@ -201,9 +202,10 @@ class VLIF(GeneralRecommender):
 
         if self.pid:
             s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
+            vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
 
         if self.v_feat is not None:
-            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
+            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vh_feat)
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
         if self.pid:
@@ -257,17 +259,17 @@ class VLIF(GeneralRecommender):
         user = interaction[0]
         pos_scores, neg_scores = self.forward(interaction)
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
-        reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
-        reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
-        if self.pid:
-            reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
-        else:
-            reg_embedding_loss_s = 0.0
+        # reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
+        # reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
+        # if self.pid:
+        #     reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
+        # else:
+        #     reg_embedding_loss_s = 0.0
 
-        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
+        # reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
         if self.pid:
-            reg_loss += self.synergy_weight * self.loss_s
+            reg_loss += self.synergy_weight * (self.loss_s + self.loss_r)
         return loss_value + reg_loss
 
     def full_sort_predict(self, interaction):

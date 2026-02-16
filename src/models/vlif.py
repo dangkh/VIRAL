@@ -87,8 +87,12 @@ class VLIF(GeneralRecommender):
         self.edge_index = torch.cat((self.edge_index, self.edge_index[[1, 0]]), dim=1)
 
         # pdb.set_trace()
+        if self.pid:
+            num_wu = 3
+        else:
+            num_wu = 2
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_user, 3, 1), dtype=torch.float32, requires_grad=True)))
+            torch.tensor(np.random.randn(self.num_user, num_wu, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
         self.item_index = torch.zeros([self.num_item], dtype=torch.long)
@@ -230,7 +234,11 @@ class VLIF(GeneralRecommender):
             user_rep = torch.cat((user_repV, user_repT), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
-        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
+
+        if self.pid:
+            user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
+        else:
+            user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
 

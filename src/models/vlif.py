@@ -51,8 +51,6 @@ class VLIF(GeneralRecommender):
         self.t_preference = None
         self.dim_latent = 64
         self.dim_feat = 128
-        self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
-        self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
         self.synergy_weight = 0.001
 
@@ -63,10 +61,8 @@ class VLIF(GeneralRecommender):
 
         if self.v_feat is not None:
             self.image_embedding = nn.Embedding.from_pretrained(self.v_feat, freeze=False)
-            self.image_trs = nn.Linear(self.v_feat.shape[1], self.feat_embed_dim)
         if self.t_feat is not None:
             self.text_embedding = nn.Embedding.from_pretrained(self.t_feat, freeze=False)
-            self.text_trs = nn.Linear(self.t_feat.shape[1], self.feat_embed_dim)
 
         # if os.path.exists(mm_adj_file):
         #     self.mm_adj = torch.load(mm_adj_file)
@@ -93,10 +89,6 @@ class VLIF(GeneralRecommender):
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
             torch.tensor(np.random.randn(self.num_user, 3, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
-
-        self.weight_i = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_item, 2, 1), dtype=torch.float32, requires_grad=True)))
-        self.weight_i.data = F.softmax(self.weight_i, dim=1)
 
         self.item_index = torch.zeros([self.num_item], dtype=torch.long)
         index = []
@@ -138,8 +130,6 @@ class VLIF(GeneralRecommender):
         self.edge_index_dropv = torch.cat((self.edge_index_dropv, self.edge_index_dropv[[1, 0]]), dim=1)
         self.edge_index_dropt = torch.cat((self.edge_index_dropt, self.edge_index_dropt[[1, 0]]), dim=1)
 
-        self.MLP_user = nn.Linear(self.dim_latent * 2, self.dim_latent)
-
         if self.v_feat is not None:
             self.v_drop_ze = torch.zeros(len(self.dropv_node_idx), self.v_feat.size(1)).to(self.device)
             self.v_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
@@ -156,27 +146,9 @@ class VLIF(GeneralRecommender):
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
-        self.result_embed = nn.Parameter(nn.init.xavier_normal_(torch.tensor(np.random.randn(num_user + num_item, dim_x)))).to(self.device)
-
-        # CMS
         self.cms = CrossmodalNet(384)
         self.adaptCMS = nn.Linear(384, 384)
         # TRB
-
-        # trb_num_heads = 4
-        # trb_hidden_dim = 256
-        # trb_num_layers = 1
-
-        # encoder_layer = nn.TransformerEncoderLayer(
-        #     d_model=trb_hidden_dim,
-        #     nhead=trb_num_heads,
-        #     dim_feedforward=trb_hidden_dim * 4,
-        #     dropout=0.1,
-        #     batch_first=True
-        # )
-        # self.cross_transformer = nn.TransformerEncoder(encoder_layer, num_layers=trb_num_layers)
-
-
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))
@@ -221,21 +193,15 @@ class VLIF(GeneralRecommender):
         user_nodes, pos_item_nodes, neg_item_nodes = interaction[0], interaction[1], interaction[2]
         pos_item_nodes += self.n_users
         neg_item_nodes += self.n_users
-        representation = None
 
         s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
 
         if self.v_feat is not None:
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
-            representation = self.v_rep
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
 
-        # s = self.adaptCMS(s)
-        # r = TBR(self.t_rep, self.v_rep)
-        # v' = Proj(self.v_rep, r)
-       
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
         item_s = self.syn[self.num_user:]

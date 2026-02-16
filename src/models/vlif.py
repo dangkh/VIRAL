@@ -53,6 +53,7 @@ class VLIF(GeneralRecommender):
         self.dim_feat = 128
         self.mm_adj = None
         self.synergy_weight = 0.001
+        self.pid = config['pid']
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -194,20 +195,25 @@ class VLIF(GeneralRecommender):
         pos_item_nodes += self.n_users
         neg_item_nodes += self.n_users
 
-        s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
+        if self.pid:
+            s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
 
         if self.v_feat is not None:
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
+        if self.pid:
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
 
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
-        item_s = self.syn[self.num_user:]
-    
+
         ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repV, item_s, item_repT), dim=1)
+        if self.pid:
+            item_s = self.syn[self.num_user:]
+            item_rep = torch.cat((item_repV, item_s, item_repT), dim=1)
+        else:
+            item_rep = torch.cat((item_repV, item_repT), dim=1)
         item_rep = self.item_item(item_rep)
 
 
@@ -216,9 +222,12 @@ class VLIF(GeneralRecommender):
         user_repT = self.t_rep[:self.num_user]
         user_repT = user_repT.unsqueeze(2)
 
-        user_s = self.syn[:self.num_user]
-        user_s = user_s.unsqueeze(2)
-        user_rep = torch.cat((user_repV, user_s, user_repT), dim=2)
+        if self.pid:
+            user_s = self.syn[:self.num_user]
+            user_s = user_s.unsqueeze(2)
+            user_rep = torch.cat((user_repV, user_s, user_repT), dim=2)
+        else:
+            user_rep = torch.cat((user_repV, user_repT), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
         user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)

@@ -68,10 +68,10 @@ class VLIF(GeneralRecommender):
         #     self.mm_adj = torch.load(mm_adj_file)
         # else:
         if self.v_feat is not None:
-            indices, image_adj = self.get_knn_adj_mat(self.image_embedding.weight.detach())
+            _, image_adj = self.get_knn_adj_mat(self.image_embedding.weight.detach())
             self.mm_adj = image_adj
         if self.t_feat is not None:
-            indices, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
+            _, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
             self.mm_adj = text_adj
         if self.v_feat is not None and self.t_feat is not None:
             self.mm_adj = self.mm_image_weight * image_adj + (1.0 - self.mm_image_weight) * text_adj

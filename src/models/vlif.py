@@ -27,7 +27,7 @@ class VLIF(GeneralRecommender):
         batch_size = config['train_batch_size']         # not used
         dim_x = config['embedding_size']
         self.feat_embed_dim = config['feat_embed_dim']
-        self.n_layers = config['i_layers']
+        self.i_layers = config['i_layers']
         self.knn_k = config['knn_k']
         self.mm_image_weight = config['mm_image_weight']
         has_id = True

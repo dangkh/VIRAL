@@ -52,7 +52,7 @@ class VLIF(GeneralRecommender):
         self.dim_latent = 64
         self.dim_feat = 128
         self.mm_adj = None
-        self.synergy_weight = 0.001
+        self.synergy_weight = 0.1
         self.pid = config['pid']
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])

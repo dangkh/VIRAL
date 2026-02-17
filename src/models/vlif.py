@@ -27,7 +27,7 @@ class VLIF(GeneralRecommender):
         batch_size = config['train_batch_size']         # not used
         dim_x = config['embedding_size']
         self.feat_embed_dim = config['feat_embed_dim']
-        self.n_layers = config['n_mm_layers']
+        self.n_layers = config['i_layers']
         self.knn_k = config['knn_k']
         self.mm_image_weight = config['mm_image_weight']
         has_id = True
@@ -38,7 +38,7 @@ class VLIF(GeneralRecommender):
         self.k = 40
         self.aggr_mode = config['aggr_mode']
         self.user_aggr_mode = 'softmax'
-        self.num_layer = 1
+        self.u_layers = config['u_layers']
         self.cold_start = 0
         self.dataset = dataset
         #self.construction = 'weighted_max'
@@ -138,15 +138,15 @@ class VLIF(GeneralRecommender):
         if self.v_feat is not None:
             self.v_drop_ze = torch.zeros(len(self.dropv_node_idx), self.v_feat.size(1)).to(self.device)
             self.v_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
-                         num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
+                         num_layer=self.u_layers, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
                          device=self.device, features=self.v_feat)  # 256)
         if self.t_feat is not None:
             self.t_drop_ze = torch.zeros(len(self.dropt_node_idx), self.t_feat.size(1)).to(self.device)
             self.t_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
-                         num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
+                         num_layer=self.u_layers, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
                          device=self.device, features=self.t_feat)
             self.s_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
-                         num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
+                         num_layer=self.u_layers, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
                          device=self.device, features=self.t_feat)
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
@@ -191,7 +191,7 @@ class VLIF(GeneralRecommender):
 
     def item_item(self, rep):
         h = rep
-        for i in range(self.n_layers):
+        for i in range(self.i_layers):
             h = torch.sparse.mm(self.mm_adj, h)
         return rep + h
 

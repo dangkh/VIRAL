@@ -26,7 +26,6 @@ if __name__ == '__main__':
         'dropout': [0.2],
         'reg_weight': [0.001],
         'learning_rate': [0.0001],
-        'n_layers': [2],
         'gpu_id': args.gpu,
         'pid': args.pid
     }

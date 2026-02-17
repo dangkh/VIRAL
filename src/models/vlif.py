@@ -203,13 +203,12 @@ class VLIF(GeneralRecommender):
         if self.pid:
             s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
             vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
-
-        if self.v_feat is not None:
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vh_feat)
+            self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
+        else:
+            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
-        if self.pid:
-            self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
 
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
@@ -259,14 +258,14 @@ class VLIF(GeneralRecommender):
         user = interaction[0]
         pos_scores, neg_scores = self.forward(interaction)
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
-        # reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
-        # reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
-        # if self.pid:
-        #     reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
-        # else:
-        #     reg_embedding_loss_s = 0.0
+        reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
+        reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
+        if self.pid:
+            reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
+        else:
+            reg_embedding_loss_s = 0.0
 
-        # reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
+        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
         if self.pid:
             reg_loss += self.synergy_weight * (self.loss_s + self.loss_r)

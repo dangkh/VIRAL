@@ -17,7 +17,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', '-m', type=str, default='VLIF', help='name of models')
     parser.add_argument('--dataset', '-d', type=str, default='baby', help='name of datasets')
-    parser.add_argument('--pid', '-p', type=bool, default=False, help='whether to use PID module')
+    parser.add_argument('--pid', '-p', type=bool, default=True, help='whether to use PID module')
     parser.add_argument('--gpu', '-g', type=int, default=0, help='GPU id to use')
 
     args, _ = parser.parse_known_args()

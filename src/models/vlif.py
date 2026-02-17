@@ -207,8 +207,7 @@ class VLIF(GeneralRecommender):
         item_rep = self.syn[self.num_user:]
         item_rep = self.item_item(item_rep)
 
-        user_s = self.syn[:self.num_user]
-        user_rep = user_s.unsqueeze(2)
+        user_rep = self.syn[:self.num_user]
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
 

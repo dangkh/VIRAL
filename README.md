@@ -1,5 +1,4 @@
 # VIRAL
-Pytorch implementation for "Enhancing Multimodal Recommendations with Vision-Language Models and Information-Aware Fusion" [arxiv](https://arxiv.org/abs/2511.02113)
 
 ```
 VIRAL/

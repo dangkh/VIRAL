@@ -52,7 +52,7 @@ class VLIF(GeneralRecommender):
         self.dim_latent = 64
         self.dim_feat = 128
         self.mm_adj = None
-        self.synergy_weight = 0.1
+        self.synergy_weight = 0.001
         self.pid = config['pid']
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
@@ -154,7 +154,7 @@ class VLIF(GeneralRecommender):
         # cms
         self.cms = CrossmodalNet(384)
         # TRB
-        self.trb = RedundantNet(384)
+        # self.trb = RedundantNet(384)
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))
@@ -202,8 +202,8 @@ class VLIF(GeneralRecommender):
 
         if self.pid:
             s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
-            vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
-            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vh_feat)
+            # vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
+            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
         else:
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
@@ -268,7 +268,7 @@ class VLIF(GeneralRecommender):
         reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
         if self.pid:
-            reg_loss += self.synergy_weight * (self.loss_s + self.loss_r)
+            reg_loss += self.synergy_weight * self.loss_s
         return loss_value + reg_loss
 
     def full_sort_predict(self, interaction):

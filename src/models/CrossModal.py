@@ -45,12 +45,12 @@ class InfoNCELoss(nn.Module):
 
         # similarity matrices
         logits_v2t = torch.matmul(v, t.T) / self.temperature  # (B, B)
-        logits_t2v = torch.matmul(t, v.T) / self.temperature  # (B, B)
+        # logits_t2v = torch.matmul(t, v.T) / self.temperature  # (B, B)
 
         labels = torch.arange(v.size(0)).to(v.device)
 
         loss_v2t = F.cross_entropy(logits_v2t, labels)
-        loss_t2v = F.cross_entropy(logits_t2v, labels)
+        loss_t2v = F.cross_entropy(logits_v2t.T, labels)
         loss = (loss_v2t + loss_t2v) / 2
         return loss
 

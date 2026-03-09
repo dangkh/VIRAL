@@ -152,9 +152,9 @@ class VLIF(GeneralRecommender):
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
         # cms
-        self.cms = CrossmodalNet(384)
+        # self.cms = CrossmodalNet(384)
         # TRB
-        # self.trb = RedundantNet(384)
+        self.trb = RedundantNet(384)
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))
@@ -201,8 +201,8 @@ class VLIF(GeneralRecommender):
         neg_item_nodes += self.n_users
 
         if self.pid:
-            s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
-            # vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
+            # s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
+            s_feat, self.loss_s = self.trb(self.t_feat, self.v_feat)
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
         else:

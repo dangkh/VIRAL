@@ -89,11 +89,11 @@ class RedundantNet(nn.Module):
         self.fusion = TransformerEncoder(inchannels, num_heads= 2, layers=1)
         self.criterion = InfoNCELoss(temperature=0.1)
         self.ln = nn.Linear(inchannels*2, inchannels)
+        self.mask_ratio = 0.1
 
     def forward(self, xt, xv):
-        t1_masked, v1_masked, _, _ = mask_two_modalities(xt, xv, 0.3)
-        t2_masked, v2_masked, _, _ = mask_two_modalities(xt, xv, 0.3)
-
+        t1_masked, v1_masked, _, _ = mask_two_modalities(xt, xv, self.mask_ratio)
+        t2_masked, v2_masked, _, _ = mask_two_modalities(xt, xv, self.mask_ratio)
         xt = xt.unsqueeze(0)
         xv = xv.unsqueeze(0)
         t1_masked = t1_masked.unsqueeze(0)

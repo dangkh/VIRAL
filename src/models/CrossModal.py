@@ -87,7 +87,7 @@ class RedundantNet(nn.Module):
         super(RedundantNet, self).__init__()
 
         self.fusion = TransformerEncoder(inchannels, num_heads= 2, layers=1)
-        self.criterion = InfoNCELoss(temperature=0.1)
+        self.criterion = InfoNCELoss(temperature=0.7)
         self.ln = nn.Linear(inchannels*2, inchannels)
         self.mask_ratio = 0.1
 
@@ -124,8 +124,8 @@ class RedundantNet(nn.Module):
         outz1 = outz1.squeeze(0)
         outz2 = outz2.squeeze(0)
 
-        loss = self.criterion(outz1, outz2) + self.criterion(out_xt, outz1)  + self.criterion(out_xt, outz2) + \
-                self.criterion(out_xv, outz1) + self.criterion(out_xv, outz2)
+        loss = self.criterion(outz1, outz2) + 0.5 * self.criterion(out_xt, outz1)  + 0.5 * self.criterion(out_xt, outz2) + \
+                0.5 * self.criterion(out_xv, outz1) + 0.5 * self.criterion(out_xv, outz2)
 
         return out_z, loss    
 

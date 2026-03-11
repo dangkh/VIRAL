@@ -52,7 +52,8 @@ class VLIF(GeneralRecommender):
         self.dim_latent = 64
         self.dim_feat = 128
         self.mm_adj = None
-        self.synergy_weight = 0.001
+        self.synergy_weight = 0.1
+        self.count_fwd = 0
         self.pid = config['pid']
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
@@ -196,6 +197,11 @@ class VLIF(GeneralRecommender):
         return rep + h
 
     def forward(self, interaction):
+        self.count_fwd += 1
+        # reduce self.synergy_weight during training
+        if self.count_fwd % 30 == 0:
+            self.synergy_weight *= 0.7
+
         user_nodes, pos_item_nodes, neg_item_nodes = interaction[0], interaction[1], interaction[2]
         pos_item_nodes += self.n_users
         neg_item_nodes += self.n_users

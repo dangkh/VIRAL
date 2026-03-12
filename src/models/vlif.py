@@ -54,7 +54,8 @@ class VLIF(GeneralRecommender):
         self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
-        self.synergy_weight = 0.01
+        self.synergy_weight = 0.1
+        self.count_syn = 0
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -208,6 +209,9 @@ class VLIF(GeneralRecommender):
         pos_item_nodes += self.n_users
         neg_item_nodes += self.n_users
         representation = None
+        self.count_syn += 1
+        if self.count_syn % 30 == 0:
+            self.synergy_weight = self.synergy_weight * 0.7
 
         s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
         vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)

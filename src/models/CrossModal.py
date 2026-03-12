@@ -131,39 +131,40 @@ class RedundantNet(nn.Module):
     def forward(self, xt, xv):
         t1_masked, v1_masked, _, _ = mask_two_modalities(xt, xv, self.mask_ratio)
         t2_masked, v2_masked, _, _ = mask_two_modalities(xt, xv, self.mask_ratio)
+        _, v3_masked, _, _ = mask_two_modalities(xt, xv, self.mask_ratio)
         xt = xt.unsqueeze(0)
         xv = xv.unsqueeze(0)
         t1_masked = t1_masked.unsqueeze(0)
         v1_masked = v1_masked.unsqueeze(0)
         t2_masked = t2_masked.unsqueeze(0)
         v2_masked = v2_masked.unsqueeze(0)
+        v3_masked = v3_masked.unsqueeze(0)
         zero_t = torch.zeros_like(xt) 
-        # zero_v = torch.zeros_like(xv) 
 
-        # zt = torch.cat((xt, zero_v), dim = -1) # Xt
         zv = torch.cat((zero_t, xv), dim = -1) # Xv
-        zf = torch.cat((xt, xv), dim = -1) # X
+        zv1 = torch.cat((zero_t, v3_masked), dim=-1) # Xv'
+        # zf = torch.cat((xt, xv), dim = -1) # X
 
         z1 = torch.cat((t1_masked, v1_masked), dim=-1) # X'
         z2 = torch.cat((t2_masked, v2_masked), dim=-1) # X''
         
 
-        # out_xt = self.fusion(self.ln(zt))
         out_xv = self.fusion(self.ln(zv))
-        out_z = self.fusion(self.ln(zf))
+        out_xv1 = self.fusion(self.ln(zv1))
+        # out_z = self.fusion(self.ln(zf))
         outz1 = self.fusion(self.ln(z1))
         outz2 = self.fusion(self.ln(z2))
 
 
-        # out_xt = out_xt.squeeze(0)
         out_xv = out_xv.squeeze(0)
-        out_z = out_z.squeeze(0)
+        out_xv1 = out_xv1.squeeze(0)
+        # out_z = out_z.squeeze(0)
         outz1 = outz1.squeeze(0)
         outz2 = outz2.squeeze(0)
 
-        loss = 0.5 * self.criterion(out_xv, outz1)  + 0.5 * self.criterion(out_xv, outz2) + self.criterion(outz2, outz1)
+        loss = 0.5 * self.criterion(out_xv, outz1)  + 0.5 * self.criterion(out_xv, outz2) + self.criterion(out_xv, out_xv1)
 
-        return out_z, loss 
+        return out_xv, loss 
 
 if __name__ == '__main__':
     encoder = CrossmodalNet(64)

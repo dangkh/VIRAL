@@ -157,8 +157,6 @@ class VLIF(GeneralRecommender):
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
-        self.result_embed = nn.Parameter(nn.init.xavier_normal_(torch.tensor(np.random.randn(num_user + num_item, dim_x)))).to(self.device)
-
         # CMS
         self.cms = CrossmodalNet(384)
         self.trb = RedundantNet(384)

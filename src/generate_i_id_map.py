@@ -27,4 +27,4 @@ i2id = {asin: i for i, asin in enumerate(unique_items)}
 print(f"Total unique items: {len(unique_items)}")
 
 # Save mapping
-pd.DataFrame(list(i2id.items()), columns=['asin', 'item_id']).to_csv('i_id_mapping.csv', index=False)
+pd.DataFrame(list(i2id.items()), columns=['asin', 'item_id']).to_csv('./data/cloth/i_id_mapping.csv', index=False)

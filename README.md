@@ -48,7 +48,7 @@ Place required files:
 baby: gdown https://drive.google.com/uc?id=1_WKB112C095iHn8djsGCKYmhrdv0xtVS
 ```
 
-Example with the "baby" dataset, using the "title" column to replace nan field:
+Example with the "baby" dataset, using the "title" column to replace nan field (gen i-id csv before this one):
 ```sh
 python src/get_text_feat.py --dataset=baby --text_column=title --type_prompt=sample
 ```

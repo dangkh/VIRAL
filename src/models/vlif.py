@@ -376,8 +376,9 @@ class GCN(torch.nn.Module):
         x = F.normalize(x).to(self.device)
         h = self.conv_embed_1(x, edge_index)  # equation 1
         h_1 = self.conv_embed_1(h, edge_index)
+        h_2 = self.conv_embed_1(h_1, edge_index)
 
-        x_hat =h + x +h_1
+        x_hat =h + x + h_1 + h_2
         return x_hat, self.preference
 
 

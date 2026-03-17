@@ -53,7 +53,7 @@ class VLIF(GeneralRecommender):
         self.dim_feat = 128
         self.mm_adj = None
         self.synergy_weight = 0.001
-        self.pid = config['pid']
+        self.fusion = config['fusion']
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -87,7 +87,7 @@ class VLIF(GeneralRecommender):
         self.edge_index = torch.cat((self.edge_index, self.edge_index[[1, 0]]), dim=1)
 
         # pdb.set_trace()
-        if self.pid:
+        if self.fusion == 'pid':
             num_wu = 3
         else:
             num_wu = 2
@@ -151,10 +151,8 @@ class VLIF(GeneralRecommender):
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
-        # cms
-        self.cms = CrossmodalNet(384)
-        # TRB
-        # self.trb = RedundantNet(384)
+        if self.fusion in ['pid', 'crossmodal']:
+            self.cms = CrossmodalNet(384)
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))
@@ -200,21 +198,23 @@ class VLIF(GeneralRecommender):
         pos_item_nodes += self.n_users
         neg_item_nodes += self.n_users
 
-        if self.pid:
-            s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
-            # vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
-            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
+        if self.fusion != None:
+            if self.fusion in ['pid', 'crossmodal']:
+                s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
+            elif self.fusion == 'pool':
+                s_feat = (self.t_feat + self.v_feat) / 2
+            elif self.fusion == 'concat':
+                s_feat = torch.cat((self.t_feat, self.v_feat), dim=1)
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
-        else:
-            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
-        if self.t_feat is not None:
-            self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
+        
+        self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
+        self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
 
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
 
         ############################################ multi-modal information aggregation
-        if self.pid:
+        if self.fusion:
             item_s = self.syn[self.num_user:]
             item_rep = torch.cat((item_repV, item_s, item_repT), dim=1)
         else:
@@ -227,7 +227,7 @@ class VLIF(GeneralRecommender):
         user_repT = self.t_rep[:self.num_user]
         user_repT = user_repT.unsqueeze(2)
 
-        if self.pid:
+        if self.fusion:
             user_s = self.syn[:self.num_user]
             user_s = user_s.unsqueeze(2)
             user_rep = torch.cat((user_repV, user_s, user_repT), dim=2)
@@ -236,7 +236,7 @@ class VLIF(GeneralRecommender):
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
 
-        if self.pid:
+        if self.fusion:
             user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
         else:
             user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
@@ -260,14 +260,14 @@ class VLIF(GeneralRecommender):
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
         reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
         reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
-        if self.pid:
+        if self.fusion == 'pid':
             reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
         else:
             reg_embedding_loss_s = 0.0
 
         reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
-        if self.pid:
+        if self.fusion == 'pid':
             reg_loss += self.synergy_weight * self.loss_s
         return loss_value + reg_loss
 

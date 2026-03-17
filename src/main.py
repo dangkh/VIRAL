@@ -17,7 +17,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', '-m', type=str, default='VLIF', help='name of models')
     parser.add_argument('--dataset', '-d', type=str, default='baby', help='name of datasets')
-    parser.add_argument('--pid', '-p', type=bool, default=False, help='whether to use PID module')
+    parser.add_argument('--fusion', '-p', type=str, default='pid', help='what fusion module: [pid, pool, concat, crossmodal]')
+    # pid here contain only CSE, crossmodal is CSE without regularization, pool is mean pooling, concat is concatenation
     parser.add_argument('--gpu', '-g', type=int, default=0, help='GPU id to use')
 
     args, _ = parser.parse_known_args()
@@ -27,7 +28,7 @@ if __name__ == '__main__':
         'reg_weight': [0.001],
         'learning_rate': [0.0001],
         'gpu_id': args.gpu,
-        'pid': args.pid
+        'fusion': args.fusion
     }
 
 

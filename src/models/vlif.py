@@ -243,7 +243,7 @@ class VLIF(GeneralRecommender):
         user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
-
+        # comment/remove the coefficient 0.5 for cloth dataset
         user_rep = 0.5 * (user_rep + h_u)
         
 

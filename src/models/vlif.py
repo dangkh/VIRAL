@@ -153,6 +153,8 @@ class VLIF(GeneralRecommender):
 
         if self.fusion in ['pid', 'crossmodal']:
             self.cms = CrossmodalNet(384)
+        elif self.fusion == 'concat':
+            self.cms = nn.Linear(384*2, 384)
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))
@@ -204,7 +206,7 @@ class VLIF(GeneralRecommender):
             elif self.fusion == 'pool':
                 s_feat = (self.t_feat + self.v_feat) / 2
             elif self.fusion == 'concat':
-                s_feat = torch.cat((self.t_feat, self.v_feat), dim=1)
+                s_feat = self.cms(torch.cat((self.t_feat, self.v_feat), dim=1))
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
         
         self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)

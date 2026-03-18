@@ -56,42 +56,42 @@ class CrossmodalNet(nn.Module):
         loss = self.criterion(out0, out1)
         return out, loss
 
-class RedundantNet(nn.Module):
-    def __init__(self, inchannels) -> None:
-        super(RedundantNet, self).__init__()
+# class RedundantNet(nn.Module):
+#     def __init__(self, inchannels) -> None:
+#         super(RedundantNet, self).__init__()
 
-        self.fusion = TransformerEncoder(inchannels, num_heads= 1, layers=1)
-        self.criterion = InfoNCELoss(temperature=0.1)
-        self.ln = nn.Linear(384*2, 384)
+#         self.fusion = TransformerEncoder(inchannels, num_heads= 1, layers=1)
+#         self.criterion = InfoNCELoss(temperature=0.1)
+#         self.ln = nn.Linear(384*2, 384)
 
-    def forward(self, xt, xv):
-        xt = xt.unsqueeze(0)
-        xv = xv.unsqueeze(0)
-        zero_t = torch.zeros_like(xt)
-        zero_v = torch.zeros_like(xv)
+#     def forward(self, xt, xv):
+#         xt = xt.unsqueeze(0)
+#         xv = xv.unsqueeze(0)
+#         zero_t = torch.zeros_like(xt)
+#         zero_v = torch.zeros_like(xv)
 
-        zt = torch.cat((xt, zero_v), dim = -1)
-        zv = torch.cat((zero_t, xv), dim = -1)
-        zf = torch.cat((xt, xv), dim = -1)
+#         zt = torch.cat((xt, zero_v), dim = -1)
+#         zv = torch.cat((zero_t, xv), dim = -1)
+#         zf = torch.cat((xt, xv), dim = -1)
 
-        out_t = self.fusion(self.ln(zt))
-        out_v = self.fusion(self.ln(zv))
-        out_f = self.fusion(self.ln(zf))
+#         out_t = self.fusion(self.ln(zt))
+#         out_v = self.fusion(self.ln(zv))
+#         out_f = self.fusion(self.ln(zf))
 
-        out_t = out_t.squeeze(0)
-        out_v = out_v.squeeze(0)
-        out_f = out_f.squeeze(0)
+#         out_t = out_t.squeeze(0)
+#         out_v = out_v.squeeze(0)
+#         out_f = out_f.squeeze(0)
 
-        out_f = 1/3 * (out_f+out_t+out_v)
+#         out_f = 1/3 * (out_f+out_t+out_v)
 
-        loss = self.criterion(out_t, out_f) + self.criterion(out_v, out_f)  + self.criterion(out_v, out_t)
+#         loss = self.criterion(out_t, out_f) + self.criterion(out_v, out_f)  + self.criterion(out_v, out_t)
 
-        xv = xv.squeeze(0)
-        dot_vr = torch.sum(xv * out_f, dim=-1, keepdim=True)   # (B, 1)
-        dot_rr = torch.sum(out_f * out_f, dim=-1, keepdim=True)   # (B, 1)
-        proj = (dot_vr / (dot_rr + 1e-8)) * out_f             # projection of t on out_f
-        v_prime = F.normalize(xv - proj, p=2, dim=1)
-        return v_prime, loss
+#         xv = xv.squeeze(0)
+#         dot_vr = torch.sum(xv * out_f, dim=-1, keepdim=True)   # (B, 1)
+#         dot_rr = torch.sum(out_f * out_f, dim=-1, keepdim=True)   # (B, 1)
+#         proj = (dot_vr / (dot_rr + 1e-8)) * out_f             # projection of t on out_f
+#         v_prime = F.normalize(xv - proj, p=2, dim=1)
+#         return v_prime, loss
 
 def partial_mask(x, mask_ratio=0.3):
     """

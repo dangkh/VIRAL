@@ -51,8 +51,6 @@ class VLIF(GeneralRecommender):
         self.t_preference = None
         self.dim_latent = 64
         self.dim_feat = 128
-        self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
-        self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
         self.synergy_weight = 0.1
         self.count_syn = 0
@@ -343,7 +341,7 @@ class GCN(torch.nn.Module):
         self.num_item = num_item
         self.datasets = datasets
         self.dim_id = dim_id
-        self.dim_feat = features.size(1)
+        self.dim_feat = dim_latent
         self.dim_latent = dim_latent
         self.aggr_mode = aggr_mode
         self.num_layer = num_layer

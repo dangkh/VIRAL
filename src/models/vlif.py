@@ -210,15 +210,16 @@ class VLIF(GeneralRecommender):
         self.count_syn += 1
         if self.count_syn % 30 == 0:
             self.synergy_weight = self.synergy_weight * 0.7
-
-        s_feat, self.loss_s = self.cms([self.t_feat, self.v_feat])
-        vh_feat, self.loss_r = self.trb(self.t_feat, self.v_feat)
+        text_feat = self.text_trs(self.text_embedding.weight)
+        image_feat = self.image_trs(self.image_embedding.weight)
+        s_feat, self.loss_s = self.cms([text_feat, image_feat])
+        vh_feat, self.loss_r = self.trb(text_feat, image_feat)
 
         if self.v_feat is not None:
             self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vh_feat)
             
         if self.t_feat is not None:
-            self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
+            self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, text_feat)
             self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
        
         item_repV = self.v_rep[self.num_user:]

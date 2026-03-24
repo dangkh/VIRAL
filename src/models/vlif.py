@@ -54,6 +54,7 @@ class VLIF(GeneralRecommender):
         self.mm_adj = None
         self.synergy_weight = 0.1
         self.count_syn = 0
+        self.dropf = nn.Dropout(0.2)
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -90,7 +91,7 @@ class VLIF(GeneralRecommender):
 
         # pdb.set_trace()
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_user, 3, 1), dtype=torch.float32, requires_grad=True)))
+            torch.tensor(np.random.randn(self.num_user, 2, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
         self.weight_i = nn.Parameter(nn.init.xavier_normal_(
@@ -210,22 +211,22 @@ class VLIF(GeneralRecommender):
             self.synergy_weight = self.synergy_weight * 0.7
         text_feat = self.text_trs(self.text_embedding.weight)
         image_feat = self.image_trs(self.image_embedding.weight)
-        s_feat, self.loss_s = self.cms([text_feat, image_feat])
-        vh_feat, self.loss_r = self.trb(text_feat, image_feat)
+        # s_feat, self.loss_s = self.cms([text_feat, image_feat])
+        # vh_feat, self.loss_r = self.trb(text_feat, image_feat)
 
         if self.v_feat is not None:
-            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vh_feat)
+            self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, image_feat)
             
         if self.t_feat is not None:
             self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, text_feat)
-            self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
+            # self.syn, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, s_feat)
        
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
-        item_s = self.syn[self.num_user:]
+        # item_s = self.syn[self.num_user:]
     
         ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repT, item_s, item_repV), dim=1)
+        item_rep = torch.cat((item_repT, item_repV), dim=1)
         item_rep = self.item_item(item_rep)
 
 
@@ -234,12 +235,12 @@ class VLIF(GeneralRecommender):
         user_repT = self.t_rep[:self.num_user]
         user_repT = user_repT.unsqueeze(2)
 
-        user_s = self.syn[:self.num_user]
-        user_s = user_s.unsqueeze(2)
-        user_rep = torch.cat((user_repT, user_s, user_repV), dim=2)
+        # user_s = self.syn[:self.num_user]
+        # user_s = user_s.unsqueeze(2)
+        user_rep = torch.cat((user_repT, user_repV), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
-        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
+        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
         # comment/remove the coefficient 0.5 for cloth dataset
@@ -252,19 +253,31 @@ class VLIF(GeneralRecommender):
         neg_item_tensor = self.result_embed[neg_item_nodes]
         pos_scores = torch.sum(user_tensor * pos_item_tensor, dim=1)
         neg_scores = torch.sum(user_tensor * neg_item_tensor, dim=1)
+        self.clLoss = (self.InfoNCE(self.dropoutf(user_tensor), self.dropoutf(user_tensor), 0.2)
+                   + self.InfoNCE(self.dropoutf(pos_item_tensor), self.dropoutf(pos_item_tensor), 0.2)) / 2
         return pos_scores, neg_scores
+    
+    def InfoNCE(self, view1, view2, temperature):
+        view1, view2 = F.normalize(view1, dim=1), F.normalize(view2, dim=1)
+        pos_score = (view1 * view2).sum(dim=-1)
+        pos_score = torch.exp(pos_score / temperature)
+        ttl_score = torch.matmul(view1, view2.transpose(0, 1))
+        ttl_score = torch.exp(ttl_score / temperature).sum(dim=1)
+        cl_loss = -torch.log(pos_score / ttl_score)
+        return torch.mean(cl_loss)
 
     def calculate_loss(self, interaction):
         user = interaction[0]
         pos_scores, neg_scores = self.forward(interaction)
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
-        reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
-        reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
-        reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
+        # reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
+        # reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
+        # reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
 
-        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
-        reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
-        reg_loss += self.synergy_weight * (self.loss_s + self.loss_r)
+        # reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
+        # reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
+        # reg_loss += self.synergy_weight * (self.loss_s + self.loss_r)
+        reg_loss = 0.05 * self.clLoss
         return loss_value + reg_loss
 
     def full_sort_predict(self, interaction):

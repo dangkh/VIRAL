@@ -16,8 +16,7 @@ import torch_geometric
 from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
-# from .CrossModal import CrossmodalNet, RedundantNet, jepa
-from jepa import JEPA, PIDJEPA
+from .jepa import PIDJEPA, synJEPA
 
 
 class VLIF(GeneralRecommender):
@@ -159,7 +158,7 @@ class VLIF(GeneralRecommender):
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
 
-        self.jepa = PIDJEPA()
+        self.jepa = synJEPA()
     
 
     def get_knn_adj_mat(self, mm_embeddings):
@@ -209,10 +208,10 @@ class VLIF(GeneralRecommender):
         outputs = self.jepa(self.v_feat, self.t_feat)
         losses = self.jepa.compute_losses(outputs)
         self.jepaLoss = losses['loss']
-        tFeat, vFeat, sFeat = outputs['u_t'], outputs['u_v'], outputs['s']
+        sFeat = outputs['target_s']
         
-        self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vFeat)
-        self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, tFeat)
+        self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
+        self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
         self.s_rep, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, sFeat)
     
         item_repV = self.v_rep[self.num_user:]

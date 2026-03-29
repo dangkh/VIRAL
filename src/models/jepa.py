@@ -219,24 +219,6 @@ class SynergyPredictor(nn.Module):
         return self.net(x)
 
 
-class TaskHead(nn.Module):
-    """
-    Classification head over [R, Uv, Ut, S].
-    """
-    def __init__(self, r_dim: int, u_dim: int, s_dim: int, hidden_dim: int, num_classes: int):
-        super().__init__()
-        in_dim = r_dim + u_dim + u_dim + s_dim
-        self.net = nn.Sequential(
-            nn.Linear(in_dim, hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, num_classes),
-        )
-
-    def forward(self, r: torch.Tensor, u_v: torch.Tensor, u_t: torch.Tensor, s: torch.Tensor) -> torch.Tensor:
-        x = torch.cat([r, u_v, u_t, s], dim=-1)
-        return self.net(x)
-
-
 # =========================
 # Config
 # =========================
@@ -258,7 +240,6 @@ class PIDJEPAConfig:
 
     predictor_hidden_dim: int = 128
     task_hidden_dim: int = 128
-    num_classes: int = 6
 
     lambda_r: float = 1.0
     lambda_u: float = 0.1
@@ -304,14 +285,6 @@ class PIDJEPA(nn.Module):
         self.pred_v_to_t = SharedPredictor(cfg.comp_dim, cfg.predictor_hidden_dim)
         self.pred_t_to_v = SharedPredictor(cfg.comp_dim, cfg.predictor_hidden_dim)
         self.pred_s = SynergyPredictor(cfg.joint_dim, cfg.predictor_hidden_dim, cfg.s_dim)
-
-        self.task_head = TaskHead(
-            r_dim=cfg.comp_dim,
-            u_dim=cfg.comp_dim,
-            s_dim=cfg.s_dim,
-            hidden_dim=cfg.task_hidden_dim,
-            num_classes=cfg.num_classes,
-        )
 
         # Target branch: EMA copies
         self.visual_encoder_t = copy.deepcopy(self.visual_encoder)
@@ -485,6 +458,130 @@ class PIDJEPA(nn.Module):
             "loss_sep_s": loss_sep_s,
             "loss_var": loss_var,
         }
+
+
+
+
+
+
+# =========================
+# Synergy base
+# =========================
+
+
+
+
+
+
+class synJEPA(nn.Module):
+    def __init__(self, cfg = None):
+        super().__init__()
+        if cfg is None:
+            cfg = PIDJEPAConfig()
+        self.cfg = cfg
+
+        # Online branch
+        self.visual_encoder = SimpleEncoder(
+            cfg.visual_input_dim, cfg.encoder_hidden_dim, cfg.latent_dim
+        )
+        self.text_encoder = SimpleEncoder(
+            cfg.text_input_dim, cfg.encoder_hidden_dim, cfg.latent_dim
+        )
+
+        self.synergy_head = SynergyHead(
+            cfg.latent_dim, cfg.synergy_hidden_dim, cfg.joint_dim, cfg.s_dim
+        )
+
+        self.pred_s = SynergyPredictor(cfg.joint_dim, cfg.predictor_hidden_dim, cfg.s_dim)
+
+        # Target branch: EMA copies
+        self.visual_encoder_t = copy.deepcopy(self.visual_encoder)
+        self.text_encoder_t = copy.deepcopy(self.text_encoder)
+        self.synergy_head_t = copy.deepcopy(self.synergy_head)
+
+        init_ema(self.visual_encoder_t, self.visual_encoder)
+        init_ema(self.text_encoder_t, self.text_encoder)
+        init_ema(self.synergy_head_t, self.synergy_head)
+
+    @torch.no_grad()
+    def update_target(self) -> None:
+        tau = self.cfg.ema_tau
+        update_ema(self.visual_encoder_t, self.visual_encoder, tau)
+        update_ema(self.text_encoder_t, self.text_encoder, tau)
+        update_ema(self.synergy_head_t, self.synergy_head, tau)
+
+    def encode_online(
+        self, x_v_ctx: torch.Tensor, x_t_ctx: torch.Tensor) -> Dict[str, torch.Tensor]:
+        z_v = self.visual_encoder(x_v_ctx)
+        z_t = self.text_encoder(x_t_ctx)
+
+        z_joint, s = self.synergy_head(z_v, z_t)
+
+        return {
+            "z_v": z_v,
+            "z_t": z_t,
+            "z_joint": z_joint,
+            "s": s,
+        }
+
+    @torch.no_grad()
+    def encode_target(
+        self, x_v_full: torch.Tensor, x_t_full: torch.Tensor) -> Dict[str, torch.Tensor]:
+        z_v = self.visual_encoder_t(x_v_full)
+        z_t = self.text_encoder_t(x_t_full)
+
+        z_joint, s = self.synergy_head_t(z_v, z_t)
+
+        return {
+            "z_v": z_v,
+            "z_t": z_t,
+            "z_joint": z_joint,
+            "s": s,
+        }
+
+    def forward(
+        self,
+        x_v_full: torch.Tensor,
+        x_t_full: torch.Tensor,
+    ) -> Dict[str, torch.Tensor]:
+        # Create masked context inputs
+        x_v_ctx, x_t_ctx, _, _ = mask_two_modalities(x_v_full, x_t_full, mask_ratio=self.cfg.mask_ratio)
+        online = self.encode_online(x_v_ctx, x_t_ctx)
+        target = self.encode_target(x_v_full, x_t_full)
+
+        # Synergy JEPA prediction
+        s_hat = self.pred_s(online["z_joint"])
+
+        return {
+            **online,
+            "target_s": target["s"].detach(),
+            "s_hat": s_hat,
+        }
+
+    def compute_losses(
+        self,
+        outputs: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
+        cfg = self.cfg
+
+        # -------------------------
+        # 1) Task loss
+        # -------------------------
+        # with rec task loss
+      
+        loss_s = F.mse_loss(outputs["s_hat"], outputs["target_s"])
+
+        
+
+        # -------------------------
+        # 7) Total
+        # -------------------------
+        total = loss_s
+
+        return {
+            "loss": total,
+        }
+
 
 
 # =========================

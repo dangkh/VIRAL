@@ -208,16 +208,19 @@ class VLIF(GeneralRecommender):
 
         outputs = self.jepa(self.v_feat, self.t_feat)
         losses = self.jepa.compute_losses(outputs)
-        self.jepaLoss = losses['total']
+        self.jepaLoss = losses['loss']
+        tFeat, vFeat, sFeat = outputs['u_t'], outputs['u_v'], outputs['s']
         
-        self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
-        self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
+        self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vFeat)
+        self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, tFeat)
+        self.s_rep, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, sFeat)
     
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
+        item_repS = self.s_rep[self.num_user:]
     
         ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repT, item_repV), dim=1)
+        item_rep = torch.cat((item_repT, item_repV, item_repS), dim=1)
         item_rep = self.item_item(item_rep)
 
 
@@ -225,11 +228,13 @@ class VLIF(GeneralRecommender):
         user_repV = user_repV.unsqueeze(2)
         user_repT = self.t_rep[:self.num_user]
         user_repT = user_repT.unsqueeze(2)
+        user_repS = self.s_rep[:self.num_user]
+        user_repS = user_repS.unsqueeze(2)
 
-        user_rep = torch.cat((user_repT, user_repV), dim=2)
+        user_rep = torch.cat((user_repT, user_repV, user_repS), dim=2)
         user_rep = self.weight_u.transpose(1,2)*user_rep
         # add synergy
-        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
+        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
         # comment/remove the coefficient 0.5 for cloth dataset
@@ -250,10 +255,11 @@ class VLIF(GeneralRecommender):
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
         reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
         reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
+        reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
 
-        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t)
+        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
-        return loss_value + reg_loss
+        return loss_value + reg_loss + self.jepaLoss
 
     def full_sort_predict(self, interaction):
         user_tensor = self.result_embed[:self.n_users]

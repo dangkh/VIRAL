@@ -56,7 +56,7 @@ class VLIF(GeneralRecommender):
         self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
         self.synergy_weight = 0.1
-        self.count_syn = 0
+        self.fuse = config['fuse']
 
         dataset_path = os.path.abspath(config['data_path'] + config['dataset'])
         self.user_graph_dict = np.load(os.path.join(dataset_path, config['user_graph_dict_file']), allow_pickle=True).item()
@@ -92,8 +92,11 @@ class VLIF(GeneralRecommender):
         self.edge_index = torch.cat((self.edge_index, self.edge_index[[1, 0]]), dim=1)
 
         # pdb.set_trace()
+        numWeight = 2
+        if self.fuse in ['pid', 'pool']:
+            numWeight = 3
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_user, 3, 1), dtype=torch.float32, requires_grad=True)))
+            torch.tensor(np.random.randn(self.num_user, numWeight, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
         self.weight_i = nn.Parameter(nn.init.xavier_normal_(
@@ -157,8 +160,10 @@ class VLIF(GeneralRecommender):
                          device=self.device, features=self.t_feat)
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
-
-        self.jepa = synJEPA()
+        if self.fuse == 'pid':
+            self.fuseFn = synJEPA()
+        elif self.fuse == 'pool':
+            self.fuseFn = nn.Linear(self.v_feat.size(1) * 2, self.dim_latent)
     
 
     def get_knn_adj_mat(self, mm_embeddings):
@@ -205,21 +210,26 @@ class VLIF(GeneralRecommender):
         pos_item_nodes += self.n_users
         neg_item_nodes += self.n_users
 
-        outputs = self.jepa(self.v_feat, self.t_feat)
-        losses = self.jepa.compute_losses(outputs)
-        self.jepaLoss = losses['loss']
-        sFeat = outputs['target_s']
-        
+        if self.fuse in ['pid', 'pool']:
+            if self.fuse == 'pid':
+                outputs = self.fuseFn(self.v_feat, self.t_feat)
+                losses = self.fuseFn.compute_losses(outputs)
+                self.jepaLoss = losses['loss']
+                sFeat = outputs['target_s']
+            else:
+                sFeat = self.fuseFn(torch.cat((self.v_feat, self.t_feat), dim=1))
+            self.s_rep, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, sFeat)
+
         self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
         self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
-        self.s_rep, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, sFeat)
     
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
-        item_repS = self.s_rep[self.num_user:]
-    
-        ############################################ multi-modal information aggregation
-        item_rep = torch.cat((item_repT, item_repV, item_repS), dim=1)
+        if self.fuse in ['pid', 'pool']:
+            item_repS = self.s_rep[self.num_user:]
+            item_rep = torch.cat((item_repT, item_repV, item_repS), dim=1)
+        else:
+            item_rep = torch.cat((item_repT, item_repV), dim=1)
         item_rep = self.item_item(item_rep)
 
 
@@ -227,13 +237,15 @@ class VLIF(GeneralRecommender):
         user_repV = user_repV.unsqueeze(2)
         user_repT = self.t_rep[:self.num_user]
         user_repT = user_repT.unsqueeze(2)
-        user_repS = self.s_rep[:self.num_user]
-        user_repS = user_repS.unsqueeze(2)
-
-        user_rep = torch.cat((user_repT, user_repV, user_repS), dim=2)
+        if self.fuse in ['pid', 'pool']:
+            user_repS = self.s_rep[:self.num_user]
+            user_repS = user_repS.unsqueeze(2)
+            user_rep = torch.cat((user_repT, user_repV, user_repS), dim=2)
+            user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
+        else:
+            user_rep = torch.cat((user_repT, user_repV), dim=2)
+            user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
         user_rep = self.weight_u.transpose(1,2)*user_rep
-        # add synergy
-        user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
         # comment/remove the coefficient 0.5 for cloth dataset
@@ -254,8 +266,13 @@ class VLIF(GeneralRecommender):
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
         reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
         reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
-        reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
-
+        if self.fuse in ['pid', 'pool']:
+            reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0            
+        else:
+            reg_embedding_loss_s = 0.0
+        if self.fuse != 'pid':
+            self.jepaLoss = 0.0
+        
         reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
         return loss_value + reg_loss + self.jepaLoss

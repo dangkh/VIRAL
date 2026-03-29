@@ -12,6 +12,33 @@ import torch.nn.functional as F
 # Utilities
 # =========================
 
+def partial_mask(x, mask_ratio=0.3):
+    """
+    Randomly mask a portion of features in a modality.
+    
+    Args:
+        x: tensor [B, D]
+        mask_ratio: percentage of features to mask
+    Returns:
+        masked_x
+    """
+    B, D = x.shape
+    
+    # create random mask
+    mask = (torch.rand(B, D, device=x.device) > mask_ratio).float()
+    
+    masked_x = x * mask
+    
+    return masked_x, mask
+
+def mask_two_modalities(x1, x2, mask_ratio=0.3):
+
+    x1_masked, mask1 = partial_mask(x1, mask_ratio)
+    x2_masked, mask2 = partial_mask(x2, mask_ratio)
+
+    return x1_masked, x2_masked, mask1, mask2
+
+
 def set_requires_grad(model: nn.Module, requires_grad: bool) -> None:
     for p in model.parameters():
         p.requires_grad = requires_grad
@@ -240,6 +267,8 @@ class PIDJEPAConfig:
     lambda_var: float = 0.01
 
     ema_tau: float = 0.99
+    
+    mask_ratio: float = 0.1
 
 
 # =========================
@@ -247,8 +276,10 @@ class PIDJEPAConfig:
 # =========================
 
 class PIDJEPA(nn.Module):
-    def __init__(self, cfg: PIDJEPAConfig):
+    def __init__(self, cfg = None):
         super().__init__()
+        if cfg is None:
+            cfg = PIDJEPAConfig()
         self.cfg = cfg
 
         # Online branch
@@ -349,11 +380,11 @@ class PIDJEPA(nn.Module):
 
     def forward(
         self,
-        x_v_ctx: torch.Tensor,
-        x_t_ctx: torch.Tensor,
         x_v_full: torch.Tensor,
         x_t_full: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
+        # Create masked context inputs
+        x_v_ctx, x_t_ctx, _, _ = mask_two_modalities(x_v_full, x_t_full, mask_ratio=self.cfg.mask_ratio)
         online = self.encode_online(x_v_ctx, x_t_ctx)
         target = self.encode_target(x_v_full, x_t_full)
 
@@ -384,15 +415,14 @@ class PIDJEPA(nn.Module):
 
     def compute_losses(
         self,
-        outputs: Dict[str, torch.Tensor],
-        labels: torch.Tensor,
+        outputs: Dict[str, torch.Tensor]
     ) -> Dict[str, torch.Tensor]:
         cfg = self.cfg
 
         # -------------------------
         # 1) Task loss
         # -------------------------
-        loss_task = F.cross_entropy(outputs["logits"], labels)
+        # with rec task loss
 
         # -------------------------
         # 2) R loss: cross-modal JEPA
@@ -440,8 +470,7 @@ class PIDJEPA(nn.Module):
         # 7) Total
         # -------------------------
         total = (
-            loss_task
-            + cfg.lambda_r * loss_r
+             cfg.lambda_r * loss_r
             + cfg.lambda_u * loss_u
             + cfg.lambda_s * loss_s
             + cfg.lambda_sep_s * loss_sep_s
@@ -450,7 +479,6 @@ class PIDJEPA(nn.Module):
 
         return {
             "loss": total,
-            "loss_task": loss_task,
             "loss_r": loss_r,
             "loss_u": loss_u,
             "loss_s": loss_s,

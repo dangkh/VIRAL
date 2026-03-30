@@ -225,21 +225,21 @@ class SynergyPredictor(nn.Module):
 
 @dataclass
 class PIDJEPAConfig:
-    visual_input_dim: int = 128
-    text_input_dim: int = 128
+    visual_input_dim: int = 384
+    text_input_dim: int = 384
 
-    encoder_hidden_dim: int = 256
-    latent_dim: int = 128
+    encoder_hidden_dim: int = 64
+    latent_dim: int = 64
 
-    decomp_hidden_dim: int = 128
+    decomp_hidden_dim: int = 64
     comp_dim: int = 64
 
-    synergy_hidden_dim: int = 128
-    joint_dim: int = 128
+    synergy_hidden_dim: int = 64
+    joint_dim: int = 64
     s_dim: int = 64
 
-    predictor_hidden_dim: int = 128
-    task_hidden_dim: int = 128
+    predictor_hidden_dim: int = 64
+    task_hidden_dim: int = 64
 
     lambda_r: float = 1.0
     lambda_u: float = 0.1
@@ -279,7 +279,7 @@ class PIDJEPA(nn.Module):
         )
 
         self.synergy_head = SynergyHead(
-            cfg.latent_dim, cfg.synergy_hidden_dim, cfg.joint_dim, cfg.s_dim
+            cfg.text_input_dim, cfg.synergy_hidden_dim, cfg.joint_dim, cfg.s_dim
         )
 
         self.pred_v_to_t = SharedPredictor(cfg.comp_dim, cfg.predictor_hidden_dim)
@@ -489,7 +489,7 @@ class synJEPA(nn.Module):
         )
 
         self.synergy_head = SynergyHead(
-            cfg.latent_dim, cfg.synergy_hidden_dim, cfg.joint_dim, cfg.s_dim
+            cfg.text_input_dim, cfg.synergy_hidden_dim, cfg.joint_dim, cfg.s_dim
         )
 
         self.pred_s = SynergyPredictor(cfg.joint_dim, cfg.predictor_hidden_dim, cfg.s_dim)

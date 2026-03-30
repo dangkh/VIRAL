@@ -278,7 +278,7 @@ class VLIF(GeneralRecommender):
         
         reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
-        return loss_value + reg_loss + self.jepaLoss
+        return loss_value + reg_loss + self.jepaLoss * 0.1
 
     def full_sort_predict(self, interaction):
         user_tensor = self.result_embed[:self.n_users]
@@ -347,14 +347,14 @@ class User_Graph_sample(torch.nn.Module):
 
 class GCN(torch.nn.Module):
     def __init__(self,datasets, batch_size, num_user, num_item, dim_id, aggr_mode, num_layer, has_id, dropout,
-                 dim_latent=None,device = None,features_size=None):
+                 dim_latent=None,device = None,features_dim=None):
         super(GCN, self).__init__()
         self.batch_size = batch_size
         self.num_user = num_user
         self.num_item = num_item
         self.datasets = datasets
         self.dim_id = dim_id
-        self.dim_feat = features_size
+        self.dim_feat = features_dim
         self.dim_latent = dim_latent
         self.aggr_mode = aggr_mode
         self.num_layer = num_layer

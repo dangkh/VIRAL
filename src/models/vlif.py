@@ -93,7 +93,7 @@ class VLIF(GeneralRecommender):
 
         # pdb.set_trace()
         numWeight = 2
-        if self.fuse in ['pid', 'pool']:
+        if self.fuse in ['pid', 'pool', 'concat']:
             numWeight = 3
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
             torch.tensor(np.random.randn(self.num_user, numWeight, 1), dtype=torch.float32, requires_grad=True)))
@@ -143,21 +143,19 @@ class VLIF(GeneralRecommender):
         self.edge_index_dropv = torch.cat((self.edge_index_dropv, self.edge_index_dropv[[1, 0]]), dim=1)
         self.edge_index_dropt = torch.cat((self.edge_index_dropt, self.edge_index_dropt[[1, 0]]), dim=1)
 
-        self.MLP_user = nn.Linear(self.dim_latent * 2, self.dim_latent)
-
         if self.v_feat is not None:
             self.v_drop_ze = torch.zeros(len(self.dropv_node_idx), self.v_feat.size(1)).to(self.device)
             self.v_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
                          num_layer=1, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
-                         device=self.device, features=self.v_feat)  # 256)
+                         device=self.device, features_dim=self.v_feat.size(1))  # 256)
         if self.t_feat is not None:
             self.t_drop_ze = torch.zeros(len(self.dropt_node_idx), self.t_feat.size(1)).to(self.device)
             self.t_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
                          num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
-                         device=self.device, features=self.t_feat)
+                         device=self.device, features_dim=self.t_feat.size(1))
             self.s_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
                          num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
-                         device=self.device, features=self.t_feat)
+                         device=self.device, features_dim=self.dim_latent)
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
         if self.fuse == 'pid':
@@ -349,14 +347,14 @@ class User_Graph_sample(torch.nn.Module):
 
 class GCN(torch.nn.Module):
     def __init__(self,datasets, batch_size, num_user, num_item, dim_id, aggr_mode, num_layer, has_id, dropout,
-                 dim_latent=None,device = None,features=None):
+                 dim_latent=None,device = None,features_size=None):
         super(GCN, self).__init__()
         self.batch_size = batch_size
         self.num_user = num_user
         self.num_item = num_item
         self.datasets = datasets
         self.dim_id = dim_id
-        self.dim_feat = features.size(1)
+        self.dim_feat = features_size
         self.dim_latent = dim_latent
         self.aggr_mode = aggr_mode
         self.num_layer = num_layer

@@ -162,8 +162,10 @@ class VLIF(GeneralRecommender):
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
         if self.fuse == 'pid':
             self.fuseFn = synJEPA()
-        elif self.fuse == 'pool':
+        elif self.fuse == 'concat':
             self.fuseFn = nn.Linear(self.v_feat.size(1) * 2, self.dim_latent)
+        elif self.fuse == 'pool':
+            self.fuseFn = nn.Linear(self.v_feat.size(1), self.dim_latent)
     
 
     def get_knn_adj_mat(self, mm_embeddings):
@@ -210,14 +212,16 @@ class VLIF(GeneralRecommender):
         pos_item_nodes += self.n_users
         neg_item_nodes += self.n_users
 
-        if self.fuse in ['pid', 'pool']:
+        if self.fuse in ['pid', 'pool', 'concat']:
             if self.fuse == 'pid':
                 outputs = self.fuseFn(self.v_feat, self.t_feat)
                 losses = self.fuseFn.compute_losses(outputs)
                 self.jepaLoss = losses['loss']
                 sFeat = outputs['target_s']
-            else:
+            elif self.fuse == 'concat':
                 sFeat = self.fuseFn(torch.cat((self.v_feat, self.t_feat), dim=1))
+            elif self.fuse == 'pool':
+                sFeat = self.fuseFn((self.v_feat + self.t_feat) / 2)
             self.s_rep, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, sFeat)
 
         self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
@@ -225,7 +229,7 @@ class VLIF(GeneralRecommender):
     
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
-        if self.fuse in ['pid', 'pool']:
+        if self.fuse in ['pid', 'pool', 'concat']:
             item_repS = self.s_rep[self.num_user:]
             item_rep = torch.cat((item_repT, item_repV, item_repS), dim=1)
         else:
@@ -237,7 +241,7 @@ class VLIF(GeneralRecommender):
         user_repV = user_repV.unsqueeze(2)
         user_repT = self.t_rep[:self.num_user]
         user_repT = user_repT.unsqueeze(2)
-        if self.fuse in ['pid', 'pool']:
+        if self.fuse in ['pid', 'pool', 'concat']:
             user_repS = self.s_rep[:self.num_user]
             user_repS = user_repS.unsqueeze(2)
             user_rep = torch.cat((user_repT, user_repV, user_repS), dim=2)
@@ -267,7 +271,7 @@ class VLIF(GeneralRecommender):
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
         reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
         reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
-        if self.fuse in ['pid', 'pool']:
+        if self.fuse in ['pid', 'pool', 'concat']:
             reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0            
         else:
             reg_embedding_loss_s = 0.0

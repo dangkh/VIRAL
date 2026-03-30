@@ -241,11 +241,12 @@ class VLIF(GeneralRecommender):
             user_repS = self.s_rep[:self.num_user]
             user_repS = user_repS.unsqueeze(2)
             user_rep = torch.cat((user_repT, user_repV, user_repS), dim=2)
+            user_rep = self.weight_u.transpose(1,2)*user_rep
             user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2]), dim=1)
         else:
             user_rep = torch.cat((user_repT, user_repV), dim=2)
+            user_rep = self.weight_u.transpose(1,2)*user_rep
             user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
-        user_rep = self.weight_u.transpose(1,2)*user_rep
 
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
         # comment/remove the coefficient 0.5 for cloth dataset

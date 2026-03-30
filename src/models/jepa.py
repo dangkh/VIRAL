@@ -512,14 +512,14 @@ class synJEPA(nn.Module):
 
     def encode_online(
         self, x_v_ctx: torch.Tensor, x_t_ctx: torch.Tensor) -> Dict[str, torch.Tensor]:
-        z_v = self.visual_encoder(x_v_ctx)
-        z_t = self.text_encoder(x_t_ctx)
+        # z_v = self.visual_encoder(x_v_ctx)
+        # z_t = self.text_encoder(x_t_ctx)
 
-        z_joint, s = self.synergy_head(z_v, z_t)
+        z_joint, s = self.synergy_head(x_v_ctx, x_t_ctx)
 
         return {
-            "z_v": z_v,
-            "z_t": z_t,
+            "z_v": x_v_ctx,
+            "z_t": x_t_ctx,
             "z_joint": z_joint,
             "s": s,
         }
@@ -527,14 +527,14 @@ class synJEPA(nn.Module):
     @torch.no_grad()
     def encode_target(
         self, x_v_full: torch.Tensor, x_t_full: torch.Tensor) -> Dict[str, torch.Tensor]:
-        z_v = self.visual_encoder_t(x_v_full)
-        z_t = self.text_encoder_t(x_t_full)
+        # z_v = self.visual_encoder_t(x_v_full)
+        # z_t = self.text_encoder_t(x_t_full)
 
-        z_joint, s = self.synergy_head_t(z_v, z_t)
+        z_joint, s = self.synergy_head_t(x_v_full, x_t_full)
 
         return {
-            "z_v": z_v,
-            "z_t": z_t,
+            "z_v": x_v_full,
+            "z_t": x_t_full,
             "z_joint": z_joint,
             "s": s,
         }

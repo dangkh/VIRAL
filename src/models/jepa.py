@@ -242,10 +242,10 @@ class PIDJEPAConfig:
     task_hidden_dim: int = 64
 
     lambda_r: float = 1.0
-    lambda_u: float = 0.1
+    lambda_u: float = 0.5
     lambda_s: float = 1.0
-    lambda_sep_s: float = 0.1
-    lambda_var: float = 0.01
+    lambda_sep_s: float = 0.5
+    lambda_var: float = 0.02
 
     ema_tau: float = 0.99
     

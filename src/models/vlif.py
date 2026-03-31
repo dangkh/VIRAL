@@ -218,7 +218,7 @@ class VLIF(GeneralRecommender):
                 outputs = self.fuseFn(self.v_feat, self.t_feat)
                 losses = self.fuseFn.compute_losses(outputs)
                 self.jepaLoss = losses['loss']
-                sFeat, rFeat = outputs['target_s'], outputs['target_r']
+                sFeat, rFeat = outputs['target_s'], outputs['r']
             elif self.fuse == 'concat':
                 sFeat = self.fuseFn(torch.cat((self.v_feat, self.t_feat), dim=1))
             elif self.fuse == 'pool':

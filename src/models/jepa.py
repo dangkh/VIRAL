@@ -316,7 +316,7 @@ class PIDJEPA(nn.Module):
         r_v, u_v = self.visual_decomp(z_v)
         r_t, u_t = self.text_decomp(z_t)
 
-        z_joint, s = self.synergy_head(z_v, z_t)
+        z_joint, s = self.synergy_head(x_v_ctx, x_t_ctx)
 
         return {
             "z_v": z_v,
@@ -338,7 +338,7 @@ class PIDJEPA(nn.Module):
         r_v, u_v = self.visual_decomp_t(z_v)
         r_t, u_t = self.text_decomp_t(z_t)
 
-        z_joint, s = self.synergy_head_t(z_v, z_t)
+        z_joint, s = self.synergy_head_t(x_v_full, x_t_full)
 
         return {
             "z_v": z_v,
@@ -371,9 +371,6 @@ class PIDJEPA(nn.Module):
         # Synergy JEPA prediction
         s_hat = self.pred_s(online["z_joint"])
 
-        # Task logits
-        logits = self.task_head(r, online["u_v"], online["u_t"], online["s"])
-
         return {
             **online,
             "target_r_v": target["r_v"].detach(),
@@ -383,7 +380,6 @@ class PIDJEPA(nn.Module):
             "r_t_hat": r_t_hat,
             "r": r,
             "s_hat": s_hat,
-            "logits": logits,
         }
 
     def compute_losses(
@@ -391,12 +387,6 @@ class PIDJEPA(nn.Module):
         outputs: Dict[str, torch.Tensor]
     ) -> Dict[str, torch.Tensor]:
         cfg = self.cfg
-
-        # -------------------------
-        # 1) Task loss
-        # -------------------------
-        # with rec task loss
-
         # -------------------------
         # 2) R loss: cross-modal JEPA
         # -------------------------
@@ -460,16 +450,9 @@ class PIDJEPA(nn.Module):
         }
 
 
-
-
-
-
 # =========================
 # Synergy base
 # =========================
-
-
-
 
 
 
@@ -512,9 +495,6 @@ class synJEPA(nn.Module):
 
     def encode_online(
         self, x_v_ctx: torch.Tensor, x_t_ctx: torch.Tensor) -> Dict[str, torch.Tensor]:
-        # z_v = self.visual_encoder(x_v_ctx)
-        # z_t = self.text_encoder(x_t_ctx)
-
         z_joint, s = self.synergy_head(x_v_ctx, x_t_ctx)
 
         return {
@@ -527,9 +507,6 @@ class synJEPA(nn.Module):
     @torch.no_grad()
     def encode_target(
         self, x_v_full: torch.Tensor, x_t_full: torch.Tensor) -> Dict[str, torch.Tensor]:
-        # z_v = self.visual_encoder_t(x_v_full)
-        # z_t = self.text_encoder_t(x_t_full)
-
         z_joint, s = self.synergy_head_t(x_v_full, x_t_full)
 
         return {
@@ -670,10 +647,9 @@ def main():
         s_dim=64,
         predictor_hidden_dim=64,
         task_hidden_dim=64,
-        num_classes=6,
-        lambda_r=1.0,
+        lambda_r=0.1,
         lambda_u=0.1,
-        lambda_s=1.0,
+        lambda_s=0.1,
         lambda_sep_s=0.1,
         lambda_var=0.01,
         ema_tau=0.99,

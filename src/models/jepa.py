@@ -242,14 +242,14 @@ class PIDJEPAConfig:
     task_hidden_dim: int = 64
 
     lambda_r: float = 1.0
-    lambda_u: float = 0.5
+    lambda_u: float = 1.0
     lambda_s: float = 1.0
-    lambda_sep_s: float = 0.5
-    lambda_var: float = 0.02
+    lambda_sep_s: float = 1.0
+    lambda_var: float = 0.01
 
-    ema_tau: float = 0.99
+    ema_tau: float = 0.9
     
-    mask_ratio: float = 0.1
+    mask_ratio: float = 0.3
 
 
 # =========================
@@ -367,12 +367,14 @@ class PIDJEPA(nn.Module):
 
         # Shared fused representation
         r = 0.5 * (online["r_v"] + online["r_t"])
+        rF = 0.5 * (target["r_v"] + target["r_t"])
 
         # Synergy JEPA prediction
         s_hat = self.pred_s(online["z_joint"])
 
         return {
             **online,
+            "rF": rF,
             "target_r_v": target["r_v"].detach(),
             "target_r_t": target["r_t"].detach(),
             "target_s": target["s"].detach(),

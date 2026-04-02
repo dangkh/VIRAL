@@ -218,7 +218,7 @@ class VLIF(GeneralRecommender):
                 outputs = self.fuseFn(self.v_feat, self.t_feat)
                 losses = self.fuseFn.compute_losses(outputs)
                 self.jepaLoss = losses['loss']
-                sFeat, rFeat = outputs['target_s'], outputs['r']
+                sFeat, rFeat = outputs['target_s'], outputs['rF']
             elif self.fuse == 'concat':
                 sFeat = self.fuseFn(torch.cat((self.v_feat, self.t_feat), dim=1))
             elif self.fuse == 'pool':
@@ -287,7 +287,7 @@ class VLIF(GeneralRecommender):
         
         reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s + reg_embedding_loss_r)
         reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
-        return loss_value + reg_loss + self.jepaLoss * 0.1
+        return loss_value + reg_loss + self.jepaLoss
 
     def full_sort_predict(self, interaction):
         user_tensor = self.result_embed[:self.n_users]

@@ -167,6 +167,8 @@ class VLIF(GeneralRecommender):
             self.fuseFn = nn.Linear(self.v_feat.size(1) * 2, self.dim_latent)
         elif self.fuse == 'pool':
             self.fuseFn = nn.Linear(self.v_feat.size(1), self.dim_latent)
+
+        self.rProj = nn.Linear(self.dim_latent, self.t_feat.size(1), bias=False)
     
 
     def get_knn_adj_mat(self, mm_embeddings):
@@ -225,9 +227,12 @@ class VLIF(GeneralRecommender):
                 sFeat = self.fuseFn((self.v_feat + self.t_feat) / 2)
             self.s_rep, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, sFeat)
             self.r_rep, self.r_preference = self.r_gcn(self.edge_index_dropt, self.edge_index, rFeat)
-
-        self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, self.v_feat)
-        self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, self.t_feat)
+            prj = self.rProj(rFeat)
+            prj = F.leaky_relu(prj)
+            vFeat = self.v_feat - 0.1 * prj
+            tFeat = self.t_feat - 0.1 * prj
+        self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vFeat)
+        self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, tFeat)
     
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]

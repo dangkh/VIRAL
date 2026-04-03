@@ -377,7 +377,7 @@ class PIDJEPA(nn.Module):
             "rF": rF,
             "target_r_v": target["r_v"].detach(),
             "target_r_t": target["r_t"].detach(),
-            "target_s": target["s"].detach(),
+            "target_s": target["s"],
             "r_v_hat": r_v_hat,
             "r_t_hat": r_t_hat,
             "r": r,

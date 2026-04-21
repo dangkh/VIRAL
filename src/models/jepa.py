@@ -247,9 +247,9 @@ class PIDJEPAConfig:
     lambda_sep_s: float = 1.0
     lambda_var: float = 0.01
 
-    ema_tau: float = 0.9
+    ema_tau: float = 0.95
     
-    mask_ratio: float = 0.3
+    mask_ratio: float = 0.2
 
 
 # =========================

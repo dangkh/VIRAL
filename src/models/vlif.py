@@ -92,15 +92,16 @@ class VLIF(GeneralRecommender):
             self.user_s = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
                             np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
                             gain=1).to(self.device))
-            self.user_ut = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
-                            np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
-                            gain=1).to(self.device))
-            self.user_uv = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
-                            np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
-                            gain=1).to(self.device))
+            
             self.user_r = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
                             np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
                             gain=1).to(self.device))
+        self.user_ut = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
+                                    np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
+                                    gain=1).to(self.device))
+        self.user_uv = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
+                        np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
+                        gain=1).to(self.device))
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
             torch.tensor(np.random.randn(self.num_user, numWeight, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)

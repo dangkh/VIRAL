@@ -98,11 +98,11 @@ class VLIF(GeneralRecommender):
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
         if self.v_feat is not None:
-            self.v_gcn = GCN(self.aggr_mode, num_layer=1, dim_latent=64, device=self.device, features_dim=self.v_feat.size(1))  # 256)
+            self.v_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device) 
         if self.t_feat is not None:
-            self.t_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device, features_dim=self.t_feat.size(1))
-            self.s_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device, features_dim=self.dim_latent)
-            self.r_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device, features_dim=self.dim_latent)
+            self.t_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device)
+            self.s_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device)
+            self.r_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device)
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
         if self.fuse == 'pid':

@@ -52,8 +52,6 @@ class VLIF(GeneralRecommender):
         self.t_preference = None
         self.dim_latent = 64
         self.dim_feat = 128
-        self.MLP_v = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
-        self.MLP_t = nn.Linear(self.dim_latent, self.dim_latent, bias=False)
         self.mm_adj = None
         self.synergy_weight = 0.1
         self.fuse = config['fuse']
@@ -70,20 +68,16 @@ class VLIF(GeneralRecommender):
             self.text_embedding = nn.Embedding.from_pretrained(self.t_feat, freeze=False)
             self.text_trs = nn.Linear(self.t_feat.shape[1], self.feat_embed_dim)
 
-        # if os.path.exists(mm_adj_file):
-        #     self.mm_adj = torch.load(mm_adj_file)
-        # else:
         if self.v_feat is not None:
-            indices, image_adj = self.get_knn_adj_mat(self.image_embedding.weight.detach())
+            _, image_adj = self.get_knn_adj_mat(self.image_embedding.weight.detach())
             self.mm_adj = image_adj
         if self.t_feat is not None:
-            indices, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
+            _, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
             self.mm_adj = text_adj
         if self.v_feat is not None and self.t_feat is not None:
             self.mm_adj = self.mm_image_weight * image_adj + (1.0 - self.mm_image_weight) * text_adj
             del text_adj
             del image_adj
-        torch.save(self.mm_adj, mm_adj_file)
 
         # packing interaction in training into edge_index
         train_interactions = dataset.inter_matrix(form='coo').astype(np.float32)
@@ -95,61 +89,27 @@ class VLIF(GeneralRecommender):
         numWeight = 2
         if self.fuse in ['pid', 'pool', 'concat']:
             numWeight = 4
+            self.user_s = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
+                            np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
+                            gain=1).to(self.device))
+            self.user_ut = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
+                            np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
+                            gain=1).to(self.device))
+            self.user_uv = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
+                            np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
+                            gain=1).to(self.device))
+            self.user_r = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
+                            np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
+                            gain=1).to(self.device))
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
             torch.tensor(np.random.randn(self.num_user, numWeight, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
-        self.weight_i = nn.Parameter(nn.init.xavier_normal_(
-            torch.tensor(np.random.randn(self.num_item, 2, 1), dtype=torch.float32, requires_grad=True)))
-        self.weight_i.data = F.softmax(self.weight_i, dim=1)
-
-        self.item_index = torch.zeros([self.num_item], dtype=torch.long)
-        index = []
-        for i in range(self.num_item):
-            self.item_index[i] = i
-            index.append(i)
-        self.drop_percent = self.drop_rate
-        self.single_percent = 1
-        self.double_percent = 0
-
-        drop_item = torch.tensor(
-            np.random.choice(self.item_index, int(self.num_item * self.drop_percent), replace=False))
-        drop_item_single = drop_item[:int(self.single_percent * len(drop_item))]
-
-        self.dropv_node_idx_single = drop_item_single[:int(len(drop_item_single) * 1 / 3)]
-        self.dropt_node_idx_single = drop_item_single[int(len(drop_item_single) * 2 / 3):]
-
-        self.dropv_node_idx = self.dropv_node_idx_single
-        self.dropt_node_idx = self.dropt_node_idx_single
-
-        mask_cnt = torch.zeros(self.num_item, dtype=int).tolist()
-        for edge in edge_index:
-            mask_cnt[edge[1] - self.num_user] += 1
-        mask_dropv = []
-        mask_dropt = []
-        for idx, num in enumerate(mask_cnt):
-            temp_false = [False] * num
-            temp_true = [True] * num
-            mask_dropv.extend(temp_false) if idx in self.dropv_node_idx else mask_dropv.extend(temp_true)
-            mask_dropt.extend(temp_false) if idx in self.dropt_node_idx else mask_dropt.extend(temp_true)
-
-        edge_index = edge_index[np.lexsort(edge_index.T[1, None])]
-        edge_index_dropv = edge_index[mask_dropv]
-        edge_index_dropt = edge_index[mask_dropt]
-
-        self.edge_index_dropv = torch.tensor(edge_index_dropv).t().contiguous().to(self.device)
-        self.edge_index_dropt = torch.tensor(edge_index_dropt).t().contiguous().to(self.device)
-
-        self.edge_index_dropv = torch.cat((self.edge_index_dropv, self.edge_index_dropv[[1, 0]]), dim=1)
-        self.edge_index_dropt = torch.cat((self.edge_index_dropt, self.edge_index_dropt[[1, 0]]), dim=1)
-
         if self.v_feat is not None:
-            self.v_drop_ze = torch.zeros(len(self.dropv_node_idx), self.v_feat.size(1)).to(self.device)
             self.v_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
                          num_layer=1, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
                          device=self.device, features_dim=self.v_feat.size(1))  # 256)
         if self.t_feat is not None:
-            self.t_drop_ze = torch.zeros(len(self.dropt_node_idx), self.t_feat.size(1)).to(self.device)
             self.t_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
                          num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
                          device=self.device, features_dim=self.t_feat.size(1))
@@ -225,14 +185,14 @@ class VLIF(GeneralRecommender):
                 sFeat = self.fuseFn(torch.cat((self.v_feat, self.t_feat), dim=1))
             elif self.fuse == 'pool':
                 sFeat = self.fuseFn((self.v_feat + self.t_feat) / 2)
-            self.s_rep, self.s_preference = self.s_gcn(self.edge_index_dropt, self.edge_index, sFeat)
-            self.r_rep, self.r_preference = self.r_gcn(self.edge_index_dropt, self.edge_index, rFeat)
+            self.s_rep = self.s_gcn(self.edge_index, sFeat)
+            self.r_rep = self.r_gcn(self.edge_index, rFeat)
             prj = self.rProj(rFeat)
             prj = F.leaky_relu(prj)
             vFeat = self.v_feat - 0.1 * prj
             tFeat = self.t_feat - 0.1 * prj
-        self.v_rep, self.v_preference = self.v_gcn(self.edge_index_dropv, self.edge_index, vFeat)
-        self.t_rep, self.t_preference = self.t_gcn(self.edge_index_dropt, self.edge_index, tFeat)
+        self.v_rep = self.v_gcn(self.edge_index, vFeat)
+        self.t_rep = self.t_gcn(self.edge_index, tFeat)
     
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
@@ -279,19 +239,10 @@ class VLIF(GeneralRecommender):
         user = interaction[0]
         pos_scores, neg_scores = self.forward(interaction)
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
-        reg_embedding_loss_v = (self.v_preference[user] ** 2).mean() if self.v_preference is not None else 0.0
-        reg_embedding_loss_t = (self.t_preference[user] ** 2).mean() if self.t_preference is not None else 0.0
-        if self.fuse in ['pid', 'pool', 'concat']:
-            reg_embedding_loss_s = (self.s_preference[user] ** 2).mean() if self.s_preference is not None else 0.0
-            reg_embedding_loss_r = (self.r_preference[user] ** 2).mean() if self.r_preference is not None else 0.0       
-        else:
-            reg_embedding_loss_s = 0.0
-            reg_embedding_loss_r = 0.0
         if self.fuse != 'pid':
             self.jepaLoss = 0.0
         
-        reg_loss = self.reg_weight * (reg_embedding_loss_v + reg_embedding_loss_t + reg_embedding_loss_s + reg_embedding_loss_r)
-        reg_loss += self.reg_weight * (self.weight_u ** 2).mean()
+        reg_loss = self.reg_weight * (self.weight_u ** 2).mean()
         return loss_value + reg_loss + self.jepaLoss
 
     def full_sort_predict(self, interaction):
@@ -377,9 +328,6 @@ class GCN(torch.nn.Module):
         self.device = device
 
         if self.dim_latent:
-            self.preference = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
-                np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
-                gain=1).to(self.device))
             if self.num_layer == 2:
                 self.MLP = nn.Linear(self.dim_feat, 4*self.dim_latent)
                 self.MLP_1 = nn.Linear(4*self.dim_latent, self.dim_latent)
@@ -388,24 +336,21 @@ class GCN(torch.nn.Module):
             self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
 
         else:
-            self.preference = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
-                np.random.randn(num_user, self.dim_feat), dtype=torch.float32, requires_grad=True),
-                gain=1).to(self.device))
             self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
 
-    def forward(self, edge_index_drop,edge_index,features):
+    def forward(self,edge_index,features_item, feature_user):
         if self.num_layer == 1:
-            temp_features = F.leaky_relu(self.MLP(features)) if self.dim_latent else features
+            temp_features = F.leaky_relu(self.MLP(features_item)) if self.dim_latent else features_item
         else:
-            temp_features = self.MLP_1(F.leaky_relu(self.MLP(features))) if self.dim_latent else features
-        x = torch.cat((self.preference, temp_features), dim=0).to(self.device)
+            temp_features = self.MLP_1(F.leaky_relu(self.MLP(features_item))) if self.dim_latent else features_item
+        x = torch.cat((feature_user, temp_features), dim=0).to(self.device)
         x = F.normalize(x).to(self.device)
         h = self.conv_embed_1(x, edge_index)  # equation 1
         h_1 = self.conv_embed_1(h, edge_index)
         h_2 = self.conv_embed_1(h_1, edge_index)
 
         x_hat =h + x + h_1 + h_2
-        return x_hat, self.preference
+        return x_hat
 
 
 class Base_gcn(MessagePassing):

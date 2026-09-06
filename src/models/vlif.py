@@ -61,18 +61,14 @@ class VLIF(GeneralRecommender):
         
         mm_adj_file = os.path.join(dataset_path, 'mm_adj_{}.pt'.format(self.knn_k))
 
-        if self.v_feat is not None:
-            self.image_embedding = nn.Embedding.from_pretrained(self.v_feat, freeze=False)
-            self.image_trs = nn.Linear(self.v_feat.shape[1], self.feat_embed_dim)
-        if self.t_feat is not None:
-            self.text_embedding = nn.Embedding.from_pretrained(self.t_feat, freeze=False)
-            self.text_trs = nn.Linear(self.t_feat.shape[1], self.feat_embed_dim)
+        self.image_trs = nn.Linear(self.v_feat.shape[1], self.feat_embed_dim)
+        self.text_trs = nn.Linear(self.t_feat.shape[1], self.feat_embed_dim)
 
         if self.v_feat is not None:
-            _, image_adj = self.get_knn_adj_mat(self.image_embedding.weight.detach())
+            _, image_adj = self.get_knn_adj_mat(self.v_feat.detach())
             self.mm_adj = image_adj
         if self.t_feat is not None:
-            _, text_adj = self.get_knn_adj_mat(self.text_embedding.weight.detach())
+            _, text_adj = self.get_knn_adj_mat(self.t_feat.detach())
             self.mm_adj = text_adj
         if self.v_feat is not None and self.t_feat is not None:
             self.mm_adj = self.mm_image_weight * image_adj + (1.0 - self.mm_image_weight) * text_adj
@@ -190,8 +186,10 @@ class VLIF(GeneralRecommender):
             self.r_rep = self.r_gcn(self.edge_index, rFeat, self.user_r)
             prj = self.rProj(rFeat)
             prj = F.leaky_relu(prj)
-        self.v_rep = self.v_gcn(self.edge_index, self.v_feat, self.user_uv)
-        self.t_rep = self.t_gcn(self.edge_index, self.t_feat, self.user_ut)
+        vfeat = self.image_trs(self.v_feat)
+        tfeat = self.text_trs(self.t_feat)
+        self.v_rep = self.v_gcn(self.edge_index, vfeat, self.user_uv)
+        self.t_rep = self.t_gcn(self.edge_index, tfeat, self.user_ut)
     
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]
@@ -326,23 +324,10 @@ class GCN(torch.nn.Module):
         self.dropout = dropout
         self.device = device
 
-        if self.dim_latent:
-            if self.num_layer == 2:
-                self.MLP = nn.Linear(self.dim_feat, 4*self.dim_latent)
-                self.MLP_1 = nn.Linear(4*self.dim_latent, self.dim_latent)
-            else:
-                self.MLP = nn.Linear(self.dim_feat, self.dim_latent)
-            self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
-
-        else:
-            self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
+        self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
 
     def forward(self,edge_index,features_item, feature_user):
-        if self.num_layer == 1:
-            temp_features = F.leaky_relu(self.MLP(features_item)) if self.dim_latent else features_item
-        else:
-            temp_features = self.MLP_1(F.leaky_relu(self.MLP(features_item))) if self.dim_latent else features_item
-        x = torch.cat((feature_user, temp_features), dim=0).to(self.device)
+        x = torch.cat((feature_user, features_item), dim=0).to(self.device)
         x = F.normalize(x).to(self.device)
         h = self.conv_embed_1(x, edge_index)  # equation 1
         h_1 = self.conv_embed_1(h, edge_index)

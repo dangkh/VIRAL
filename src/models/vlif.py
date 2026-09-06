@@ -189,10 +189,8 @@ class VLIF(GeneralRecommender):
             self.r_rep = self.r_gcn(self.edge_index, rFeat, self.user_r)
             prj = self.rProj(rFeat)
             prj = F.leaky_relu(prj)
-            vFeat = self.v_feat - 0.1 * prj
-            tFeat = self.t_feat - 0.1 * prj
-        self.v_rep = self.v_gcn(self.edge_index, vFeat, self.user_uv)
-        self.t_rep = self.t_gcn(self.edge_index, tFeat, self.user_ut)
+        self.v_rep = self.v_gcn(self.edge_index, self.v_feat, self.user_uv)
+        self.t_rep = self.t_gcn(self.edge_index, self.t_feat, self.user_ut)
     
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]

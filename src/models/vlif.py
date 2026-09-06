@@ -25,24 +25,19 @@ class VLIF(GeneralRecommender):
 
         num_user = self.n_users
         num_item = self.n_items
-        batch_size = config['train_batch_size']         # not used
-        dim_x = config['embedding_size']
         self.feat_embed_dim = config['feat_embed_dim']
         self.ii_layers = config['ii_layers']
         self.knn_k = config['knn_k']
         self.mm_image_weight = config['mm_image_weight']
-        has_id = True
 
-        self.batch_size = batch_size
         self.num_user = num_user
         self.num_item = num_item
-        self.k = 40
+        self.k = config['k']
         self.aggr_mode = config['aggr_mode']
         self.user_aggr_mode = 'softmax'
-        self.num_layer = config['ui_layers']
+        self.ui_layer = config['ui_layers']
         self.dataset = dataset
         self.reg_weight = config['reg_weight']
-        self.drop_rate = 0.1
         self.v_rep = None
         self.t_rep = None
         self.dim_latent = 64
@@ -98,11 +93,11 @@ class VLIF(GeneralRecommender):
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
         if self.v_feat is not None:
-            self.v_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device) 
+            self.v_gcn = GCN(self.aggr_mode, num_layer=self.ui_layer, dim_latent=64, device=self.device) 
         if self.t_feat is not None:
-            self.t_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device)
-            self.s_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device)
-            self.r_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device)
+            self.t_gcn = GCN(self.aggr_mode, num_layer=self.ui_layer, dim_latent=64, device=self.device)
+            self.s_gcn = GCN(self.aggr_mode, num_layer=self.ui_layer, dim_latent=64, device=self.device)
+            self.r_gcn = GCN(self.aggr_mode, num_layer=self.ui_layer, dim_latent=64, device=self.device)
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
         if self.fuse == 'pid':
@@ -150,7 +145,7 @@ class VLIF(GeneralRecommender):
 
     def item_item(self, rep):
         h = rep
-        for i in range(self.n_layers):
+        for i in range(self.ii_layers):
             h = torch.sparse.mm(self.mm_adj, h)
         return rep + h
 
@@ -262,16 +257,12 @@ class VLIF(GeneralRecommender):
 
                 if self.user_aggr_mode == 'softmax':
                     user_weight_matrix[i] = F.softmax(torch.tensor(user_graph_weight), dim=0)  # softmax
-                if self.user_aggr_mode == 'mean':
-                    user_weight_matrix[i] = torch.ones(k) / k  # mean
                 continue
             user_graph_sample = self.user_graph_dict[i][0][:k]
             user_graph_weight = self.user_graph_dict[i][1][:k]
 
             if self.user_aggr_mode == 'softmax':
                 user_weight_matrix[i] = F.softmax(torch.tensor(user_graph_weight), dim=0)  # softmax
-            if self.user_aggr_mode == 'mean':
-                user_weight_matrix[i] = torch.ones(k) / k  # mean
             user_graph_index.append(user_graph_sample)
 
         # pdb.set_trace()

@@ -28,7 +28,7 @@ class VLIF(GeneralRecommender):
         batch_size = config['train_batch_size']         # not used
         dim_x = config['embedding_size']
         self.feat_embed_dim = config['feat_embed_dim']
-        self.n_layers = config['n_mm_layers']
+        self.ii_layers = config['ii_layers']
         self.knn_k = config['knn_k']
         self.mm_image_weight = config['mm_image_weight']
         has_id = True
@@ -39,17 +39,12 @@ class VLIF(GeneralRecommender):
         self.k = 40
         self.aggr_mode = config['aggr_mode']
         self.user_aggr_mode = 'softmax'
-        self.num_layer = 2
-        self.cold_start = 0
+        self.num_layer = config['ui_layers']
         self.dataset = dataset
-        #self.construction = 'weighted_max'
-        self.construction = 'cat'
         self.reg_weight = config['reg_weight']
         self.drop_rate = 0.1
         self.v_rep = None
         self.t_rep = None
-        self.v_preference = None
-        self.t_preference = None
         self.dim_latent = 64
         self.dim_feat = 128
         self.mm_adj = None
@@ -103,19 +98,11 @@ class VLIF(GeneralRecommender):
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
 
         if self.v_feat is not None:
-            self.v_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
-                         num_layer=1, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
-                         device=self.device, features_dim=self.v_feat.size(1))  # 256)
+            self.v_gcn = GCN(self.aggr_mode, num_layer=1, dim_latent=64, device=self.device, features_dim=self.v_feat.size(1))  # 256)
         if self.t_feat is not None:
-            self.t_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
-                         num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
-                         device=self.device, features_dim=self.t_feat.size(1))
-            self.s_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
-                         num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
-                         device=self.device, features_dim=self.dim_latent)
-            self.r_gcn = GCN(self.dataset, batch_size, num_user, num_item, dim_x, self.aggr_mode,
-                         num_layer=self.num_layer, has_id=has_id, dropout=self.drop_rate, dim_latent=64,
-                         device=self.device, features_dim=self.dim_latent)
+            self.t_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device, features_dim=self.t_feat.size(1))
+            self.s_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device, features_dim=self.dim_latent)
+            self.r_gcn = GCN(self.aggr_mode, num_layer=self.num_layer, dim_latent=64, device=self.device, features_dim=self.dim_latent)
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
         if self.fuse == 'pid':
@@ -308,20 +295,11 @@ class User_Graph_sample(torch.nn.Module):
 
 
 class GCN(torch.nn.Module):
-    def __init__(self,datasets, batch_size, num_user, num_item, dim_id, aggr_mode, num_layer, has_id, dropout,
-                 dim_latent=None,device = None,features_dim=None):
+    def __init__(self, aggr_mode, num_layer, dim_latent=None,device = None):
         super(GCN, self).__init__()
-        self.batch_size = batch_size
-        self.num_user = num_user
-        self.num_item = num_item
-        self.datasets = datasets
-        self.dim_id = dim_id
-        self.dim_feat = features_dim
         self.dim_latent = dim_latent
         self.aggr_mode = aggr_mode
         self.num_layer = num_layer
-        self.has_id = has_id
-        self.dropout = dropout
         self.device = device
 
         self.conv_embed_1 = Base_gcn(self.dim_latent, self.dim_latent, aggr=self.aggr_mode)
@@ -329,11 +307,11 @@ class GCN(torch.nn.Module):
     def forward(self,edge_index,features_item, feature_user):
         x = torch.cat((feature_user, features_item), dim=0).to(self.device)
         x = F.normalize(x).to(self.device)
-        h = self.conv_embed_1(x, edge_index)  # equation 1
-        h_1 = self.conv_embed_1(h, edge_index)
-        h_2 = self.conv_embed_1(h_1, edge_index)
-
-        x_hat =h + x + h_1 + h_2
+        res = [x]
+        for i in range(self.num_layer):
+            x = self.conv_embed_1(x, edge_index)
+            res.append(x)
+        x_hat = sum(res)
         return x_hat
 
 

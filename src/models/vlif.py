@@ -159,19 +159,23 @@ class VLIF(GeneralRecommender):
                 outputs = self.fuseFn(self.v_feat, self.t_feat)
                 losses = self.fuseFn.compute_losses(outputs)
                 self.jepaLoss = losses['loss']
-                sFeat, rFeat = outputs['target_s'], outputs['rF']
+                rFeat  = outputs["r"]
+                uvFeat = outputs["u_v"]
+                utFeat = outputs["u_t"]
+                sFeat  = outputs["s"]
             elif self.fuse == 'concat':
                 sFeat = self.fuseFn(torch.cat((self.v_feat, self.t_feat), dim=1))
             elif self.fuse == 'pool':
                 sFeat = self.fuseFn((self.v_feat + self.t_feat) / 2)
             self.s_rep = self.s_gcn(self.edge_index, sFeat, self.user_s)
             self.r_rep = self.r_gcn(self.edge_index, rFeat, self.user_r)
-            prj = self.rProj(rFeat)
-            prj = F.leaky_relu(prj)
-        vfeat = self.image_trs(self.v_feat)
-        tfeat = self.text_trs(self.t_feat)
-        self.v_rep = self.v_gcn(self.edge_index, vfeat, self.user_uv)
-        self.t_rep = self.t_gcn(self.edge_index, tfeat, self.user_ut)
+            self.v_rep = self.v_gcn(self.edge_index, uvFeat, self.user_uv)
+            self.t_rep = self.t_gcn(self.edge_index, utFeat, self.user_ut)
+        else:
+            vfeat = self.image_trs(self.v_feat)
+            tfeat = self.text_trs(self.t_feat)
+            self.v_rep = self.v_gcn(self.edge_index, vfeat, self.user_uv)
+            self.t_rep = self.t_gcn(self.edge_index, tfeat, self.user_ut)
     
         item_repV = self.v_rep[self.num_user:]
         item_repT = self.t_rep[self.num_user:]

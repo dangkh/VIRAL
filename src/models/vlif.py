@@ -156,6 +156,8 @@ class VLIF(GeneralRecommender):
 
         if self.fuse in ['pid', 'pool', 'concat']:
             if self.fuse == 'pid':
+                if self.training:
+                    self.fuseFn.update_target()
                 outputs = self.fuseFn(self.v_feat, self.t_feat)
                 losses = self.fuseFn.compute_losses(outputs)
                 self.jepaLoss = losses['loss']

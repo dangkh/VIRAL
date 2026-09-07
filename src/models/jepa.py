@@ -11,37 +11,6 @@ import torch.nn.functional as F
 # Utilities
 # ============================================================
 
-def partial_mask(x: torch.Tensor, mask_ratio: float = 0.2):
-    """
-    Feature-wise random masking.
-
-    Args:
-        x: [B, D]
-        mask_ratio: fraction of dimensions to mask.
-
-    Returns:
-        x_masked: [B, D]
-        mask: [B, D], 1 = kept, 0 = masked
-    """
-    if x.dim() != 2:
-        raise ValueError(f"partial_mask expects [B, D], got {tuple(x.shape)}")
-    if not (0.0 <= mask_ratio < 1.0):
-        raise ValueError("mask_ratio must be in [0, 1).")
-
-    mask = (torch.rand_like(x) > mask_ratio).to(x.dtype)
-    return x * mask, mask
-
-
-def mask_two_modalities(
-    x_v: torch.Tensor,
-    x_t: torch.Tensor,
-    mask_ratio: float = 0.2,
-):
-    x_v_ctx, mask_v = partial_mask(x_v, mask_ratio)
-    x_t_ctx, mask_t = partial_mask(x_t, mask_ratio)
-    return x_v_ctx, x_t_ctx, mask_v, mask_t
-
-
 def set_requires_grad(model: nn.Module, requires_grad: bool) -> None:
     for p in model.parameters():
         p.requires_grad = requires_grad
@@ -170,20 +139,38 @@ class MLP(nn.Module):
         return self.net(x)
 
 
-class SimpleEncoder(nn.Module):
+class ModalityMLPEncoder(nn.Module):
     """
-    Replace with the real modality encoder if needed.
+    One MLP encoder per modality.
+
+    Visual and text use the same architecture but DO NOT share weights:
+        z_v = E_v(x_v)
+        z_t = E_t(x_t)
+
+    PID decomposition is performed after this modality representation:
+        z_v -> r_v, u_v
+        z_t -> r_t, u_t
     """
-    def __init__(self, input_dim: int, hidden_dim: int, latent_dim: int):
+    def __init__(
+        self,
+        input_dim: int,
+        hidden_dim: int,
+        latent_dim: int,
+        num_layers: int = 2,
+        dropout: float = 0.0,
+    ):
         super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_dim, latent_dim),
+        self.mlp = MLP(
+            in_dim=input_dim,
+            hidden_dim=hidden_dim,
+            out_dim=latent_dim,
+            num_layers=num_layers,
+            dropout=dropout,
+            use_bn=False,
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+        return self.mlp(x)
 
 
 class DecompositionHead(nn.Module):
@@ -257,6 +244,8 @@ class PIDJEPAConfig:
     text_input_dim: int = 384
 
     encoder_hidden_dim: int = 64
+    encoder_num_layers: int = 2
+    encoder_dropout: float = 0.0
     latent_dim: int = 64
 
     decomp_hidden_dim: int = 64
@@ -290,8 +279,7 @@ class PIDJEPAConfig:
     # EMA
     ema_tau: float = 0.99
 
-    # Context corruption
-    mask_ratio: float = 0.2
+    # Input handling
 
 
 # ============================================================
@@ -303,19 +291,19 @@ class PIDJEPA(nn.Module):
     JEPA operationalization of PID:
 
     R:
-        masked V -> full target R_T
-        masked T -> full target R_V
+        V -> full target R_T
+        T -> full target R_V
 
     U_v:
-        masked V -> full target U_V
+        V -> full target U_V
         while U_V is decorrelated from R and T
 
     U_t:
-        masked T -> full target U_T
+        T -> full target U_T
         while U_T is decorrelated from R and V
 
     S:
-        masked (V,T) -> full target S
+        (V,T) -> full target S
         while adversarial single-modality predictors try to recover S
         and the modality encoders are trained (via GRL) to prevent that.
 
@@ -334,15 +322,19 @@ class PIDJEPA(nn.Module):
         # -------------------------
         # Online encoders
         # -------------------------
-        self.visual_encoder = SimpleEncoder(
-            cfg.visual_input_dim,
-            cfg.encoder_hidden_dim,
-            cfg.latent_dim,
+        self.visual_encoder = ModalityMLPEncoder(
+            input_dim=cfg.visual_input_dim,
+            hidden_dim=cfg.encoder_hidden_dim,
+            latent_dim=cfg.latent_dim,
+            num_layers=cfg.encoder_num_layers,
+            dropout=cfg.encoder_dropout,
         )
-        self.text_encoder = SimpleEncoder(
-            cfg.text_input_dim,
-            cfg.encoder_hidden_dim,
-            cfg.latent_dim,
+        self.text_encoder = ModalityMLPEncoder(
+            input_dim=cfg.text_input_dim,
+            hidden_dim=cfg.encoder_hidden_dim,
+            latent_dim=cfg.latent_dim,
+            num_layers=cfg.encoder_num_layers,
+            dropout=cfg.encoder_dropout,
         )
 
         # -------------------------
@@ -383,7 +375,7 @@ class PIDJEPA(nn.Module):
 
         # -------------------------
         # U predictors:
-        # own-modality masked-to-full JEPA
+        # own-modality JEPA/self-distillation
         # -------------------------
         self.pred_u_v = Predictor(
             cfg.comp_dim,
@@ -398,7 +390,7 @@ class PIDJEPA(nn.Module):
 
         # -------------------------
         # S predictor:
-        # joint masked-to-full JEPA
+        # joint JEPA/self-distillation
         # -------------------------
         self.pred_s_joint = Predictor(
             cfg.joint_dim,
@@ -521,12 +513,10 @@ class PIDJEPA(nn.Module):
         x_t_full: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
 
-        # Mask exactly ONCE, here.
-        x_v_ctx, x_t_ctx, mask_v, mask_t = mask_two_modalities(
-            x_v_full,
-            x_t_full,
-            mask_ratio=self.cfg.mask_ratio,
-        )
+        # Use full visual/text features directly.
+        # PID identity is defined by cross-modal/joint predictability.
+        x_v_ctx = x_v_full
+        x_t_ctx = x_t_full
 
         online = self.encode_online(x_v_ctx, x_t_ctx)
         target = self.encode_target(x_v_full, x_t_full)
@@ -549,7 +539,7 @@ class PIDJEPA(nn.Module):
         r_target = 0.5 * (target["r_v"] + target["r_t"])
 
         # ====================================================
-        # U: own-modality masked-to-full JEPA
+        # U: own-modality JEPA/self-distillation
         # ====================================================
         u_v_hat = self.pred_u_v(online["u_v"])
         u_t_hat = self.pred_u_t(online["u_t"])
@@ -580,10 +570,6 @@ class PIDJEPA(nn.Module):
 
         return {
             **online,
-
-            # masks
-            "mask_v": mask_v,
-            "mask_t": mask_t,
 
             # full online modality latents for exclusivity tests
             "z_v_full_online": z_v_full_online,
@@ -644,8 +630,8 @@ class PIDJEPA(nn.Module):
         # ====================================================
         # 2) UNIQUENESS: positive own-modality information
         #
-        # masked V -> U_V(full)
-        # masked T -> U_T(full)
+        # V -> U_V(EMA)
+        # T -> U_T(EMA)
         #
         # This fixes the previous issue where U was only
         # decorrelated but had no positive information objective.
@@ -695,7 +681,7 @@ class PIDJEPA(nn.Module):
         # ====================================================
         # 3) SYNERGY: positive joint information
         #
-        # masked (V,T) -> S(full V,T)
+        # (V,T) -> S(EMA full V,T)
         # ====================================================
         loss_s_joint = F.mse_loss(
             outputs["s_hat"],
@@ -814,7 +800,7 @@ def train_step(
     x_v = batch["x_v"].to(device)
     x_t = batch["x_t"].to(device)
 
-    # No masking here: forward() owns the context corruption.
+    # No input corruption here: forward() owns the context corruption.
     outputs = model(
         x_v_full=x_v,
         x_t_full=x_t,
@@ -849,6 +835,8 @@ def main():
         text_input_dim=384,
 
         encoder_hidden_dim=64,
+        encoder_num_layers=2,
+        encoder_dropout=0.0,
         latent_dim=64,
 
         decomp_hidden_dim=64,
@@ -875,7 +863,6 @@ def main():
         lambda_var=0.01,
 
         ema_tau=0.99,
-        mask_ratio=0.2,
     )
 
     model = PIDJEPA(cfg).to(device)

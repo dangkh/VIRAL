@@ -34,3 +34,5 @@ vpid_grl_lambda: 1.0
 vpid_holdout_ratio: 0.1       # items excluded from the V-PID loss, used for unbiased estimates
 vpid_split_seed: 2026
 vpid_log_step: 5              # log V-PID estimates every N epochs (0 = off)
+vpid_detach_rec: False        # True: BPR gradient does not reach the PID encoders
+clip_grad_norm: {max_norm: 5.0}   # safety net against divergence (applies to every fuse mode)

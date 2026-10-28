@@ -174,6 +174,8 @@ class VLIF(GeneralRecommender):
         )
         self.fuseFn = PredictivePID(cfg)
         self.vpid_weight = float(self._cfg(config, 'vpid_weight', 1.0))
+        # True: BPR does not back-propagate into the PID encoders (decomposition set by V-PID only)
+        self.vpid_detach_rec = bool(self._cfg(config, 'vpid_detach_rec', False))
         self.vpid_log_step = int(self._cfg(config, 'vpid_log_step', 5))
         self._vpid_epoch = 0
         self._vpid_stats = {}
@@ -194,6 +196,8 @@ class VLIF(GeneralRecommender):
                         self._vpid_stats.setdefault(k, []).append(float(v))
             else:
                 self.jepaLoss = 0.0
+            if self.vpid_detach_rec:
+                out = {k: (v.detach() if k in ('u_t', 'u_v', 's', 'r') else v) for k, v in out.items()}
             branches = [(out['u_t'], self.user_ut, self.t_gcn),
                         (out['u_v'], self.user_uv, self.v_gcn),
                         (out['s'], self.user_s, self.s_gcn),

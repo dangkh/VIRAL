@@ -15,6 +15,7 @@ no_fusion       --fuse=none
 vpid_noID       --fuse=vpid --vpid_use_id_branch=False
 vpid_noExcl     --fuse=vpid --vpid_lambda_excl=0.0
 vpid_noAgree    --fuse=vpid --vpid_beta_r=0.0
+vpid_detach     --fuse=vpid --vpid_detach_rec=True
 
 # ---- V-PID sensitivity ----
 vpid_w0.1       --fuse=vpid --vpid_weight=0.1

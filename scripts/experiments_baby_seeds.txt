@@ -1,0 +1,26 @@
+# Seed runs for mean +/- std:  bash scripts/submit_all.sh baby scripts/experiments_baby_seeds.txt
+# Names ending in _s<seed> are grouped by:  python scripts/collect_results.py --group_seeds
+
+concat_s999       --fuse=concat --seed=999
+concat_s1         --fuse=concat --seed=1
+concat_s2         --fuse=concat --seed=2
+concat_s3         --fuse=concat --seed=3
+concat_s4         --fuse=concat --seed=4
+
+no_fusion_s999    --fuse=none --seed=999
+no_fusion_s1      --fuse=none --seed=1
+no_fusion_s2      --fuse=none --seed=2
+no_fusion_s3      --fuse=none --seed=3
+no_fusion_s4      --fuse=none --seed=4
+
+vpid_s999         --fuse=vpid --seed=999
+vpid_s1           --fuse=vpid --seed=1
+vpid_s2           --fuse=vpid --seed=2
+vpid_s3           --fuse=vpid --seed=3
+vpid_s4           --fuse=vpid --seed=4
+
+vpid_detach_s999  --fuse=vpid --vpid_detach_rec=True --seed=999
+vpid_detach_s1    --fuse=vpid --vpid_detach_rec=True --seed=1
+vpid_detach_s2    --fuse=vpid --vpid_detach_rec=True --seed=2
+vpid_detach_s3    --fuse=vpid --vpid_detach_rec=True --seed=3
+vpid_detach_s4    --fuse=vpid --vpid_detach_rec=True --seed=4

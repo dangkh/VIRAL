@@ -32,9 +32,14 @@ Exclusivity (adversarial, via gradient reversal):
     g_uv(u_v) must be V-unpredictable from x_t
     g_ut(u_t) must be V-unpredictable from x_v
     g_s(s)    must be V-unpredictable from x_v alone and from x_t alone
-Adversaries minimize a scale-free error  MSE / Var(target)  (= 1 - R^2);
-the reversed gradient makes the component maximize it, i.e. push the
-adversary down to the "predict the mean" baseline = zero V-information.
+Adversaries predict the CENTERED contribution and minimize the scale-free
+error  min(1, MSE / (Var(target) + eps))  (= 1 - R^2, capped at 1). The
+reversed gradient makes the component maximize it, i.e. push the adversary
+down to the "predict the mean" baseline = zero V-information, and no further:
+  - centering removes the mean-chasing loop (component drifting its mean away
+    from the adversary's bias), which made training diverge in v1;
+  - the cap at 1 removes the reward (and the 1/eps gradient blow-up) for being
+    "worse than unpredictable".
 
 Sanity check on synthetic data with known R/U/S (run from src/):
     python -m models.vpid
@@ -74,7 +79,7 @@ class VPIDConfig:
     beta_warmup_steps: int = 500   # RINE: increase beta gradually
     lambda_excl: float = 0.1       # adversarial exclusivity
     grl_lambda: float = 1.0
-    eps: float = 1e-3
+    eps: float = 1e-2              # Y is standardized, so this is 1% of Var(Y)
 
 
 # ============================================================
@@ -160,13 +165,17 @@ class PredictivePID(nn.Module):
         }
 
     # --------------------------------------------------------
-    def _adv_ratio(self, adversary, x, target, w):
-        """Adversary minimizes, component (through GRL) maximizes, 1 - R^2."""
-        tgt = grad_reverse(target, self.cfg.grl_lambda)
-        pred = adversary(x)
-        mse = _per_dim_mse(pred, tgt, w)
+    def _adv_error(self, adversary, x, target, w):
+        """Per-dim scale-free error of an adversary on the centered target, capped at 1."""
+        tgt = target - _wmean(target, w)
+        mse = _per_dim_mse(adversary(x), tgt, w)
         var = _per_dim_var(tgt, w)
-        return (mse / (var + self.cfg.eps)).mean()
+        return torch.clamp(mse / (var + self.cfg.eps), max=1.0)
+
+    def _adv_ratio(self, adversary, x, target, w):
+        """Adversary minimizes, component (through GRL) maximizes, capped 1 - R^2."""
+        tgt = grad_reverse(target, self.cfg.grl_lambda)
+        return self._adv_error(adversary, x, tgt, w).mean()
 
     def beta(self) -> float:
         c = self.cfg
@@ -241,7 +250,7 @@ class PredictivePID(nn.Module):
         I_v, I_t, I_vt, R = info(m_v), info(m_t), info(m_vt), info(m_cap)
         # how much of each exclusive contribution the adversaries still recover
         def adv_r2(adv, x, tgt):
-            return float(1.0 - (_per_dim_mse(adv(x), tgt, w) / (_per_dim_var(tgt, w) + self.cfg.eps)).mean())
+            return float(1.0 - self._adv_error(adv, x, tgt, w).mean())
 
         res = {
             'I_v': I_v, 'I_t': I_t, 'I_vt': I_vt,

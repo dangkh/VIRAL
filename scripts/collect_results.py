@@ -65,6 +65,7 @@ def main():
     ap.add_argument('--log_dir', default='log')
     ap.add_argument('--model', default='VLIF')
     ap.add_argument('--all', action='store_true')
+    ap.add_argument('--group_seeds', action='store_true', help='mean/std over names ending in _s<seed>')
     args = ap.parse_args()
 
     name_re = re.compile(r'^{}-{}-(?P<name>.+)-(?P<t>{})\.log$'.format(
@@ -109,6 +110,27 @@ def main():
         for r in runs:
             w.writerow({k: r.get(k, '') for k in keys})
     print('\nSaved', out)
+
+    if args.group_seeds:
+        groups = {}
+        for r in runs:
+            if r['status'] == 'done':
+                groups.setdefault(re.sub(r'_s\d+$', '', r['name']), []).append(r)
+        cols = ['valid_recall@20'] + ['test_' + m for m in SHOW]
+        print('\nMean +/- std over seeds (finished runs only)')
+        print('  '.join(['group'.ljust(14), 'n'] + [c.ljust(17) for c in cols]))
+        rows = []
+        for g, rs in groups.items():
+            cells = []
+            for c in cols:
+                xs = [r[c] for r in rs if c in r]
+                mu = sum(xs) / len(xs) if xs else float('nan')
+                sd = (sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5 if len(xs) > 1 else 0.0
+                cells.append((mu, sd))
+            rows.append((g, len(rs), cells))
+        rows.sort(key=lambda x: x[2][2][0], reverse=True)   # by test recall@20
+        for g, n, cells in rows:
+            print('  '.join([g.ljust(14), str(n)] + ['{:.4f}+/-{:.4f}'.format(mu, sd).ljust(17) for mu, sd in cells]))
 
 
 if __name__ == '__main__':

@@ -72,6 +72,24 @@ Edit config at src/config.py
 python src/main.py -d=baby
 ```
 
+### 4. Predictive PID (`fuse: 'vpid'`, default in `src/configs/model/VLIF.yaml`)
+R/U/S are defined as V-usable information about an **ID-only collaborative target Y**
+(no visual/text input), and learned with JEPA-style latent predictors (`src/models/vpid.py`).
+
+```sh
+# (a) sanity check on synthetic data with known R/U/S (run inside src/)
+cd src && python -m models.vpid && cd ..
+# (b) pretrain the collaborative target Y (LightGCN on IDs, train edges only)
+python src/pretrain_cf.py -d baby          # -> data/baby/cf_item_emb.npy
+# (c) train VLIF with Predictive PID
+python src/main.py -d baby
+```
+Every `vpid_log_step` epochs the log prints V-PID estimates (nats) on train items and on
+held-out items (`vpid_holdout_ratio`): `I_v, I_t, I_vt, R, U_v, U_t, S`, the explained
+fractions `R2_*`, `cf_only = 1 - R2_vt` (collaborative-only share of Y) and adversary
+leakage `leak(...)` (should stay close to 0). Set `fuse: 'pid'` to run the previous
+self-supervised PID-JEPA as a baseline.
+
 
 
 

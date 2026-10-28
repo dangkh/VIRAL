@@ -17,6 +17,7 @@ from common.abstract_recommender import GeneralRecommender
 from common.loss import BPRLoss, EmbLoss
 from common.init import xavier_uniform_initialization
 from .jepa import PIDJEPA
+from .vpid import PredictivePID, VPIDConfig, standardize, format_vpid
 
 
 class VLIF(GeneralRecommender):
@@ -73,7 +74,7 @@ class VLIF(GeneralRecommender):
 
         # pdb.set_trace()
         numWeight = 2
-        if self.fuse in ['pid', 'pool', 'concat']:
+        if self.fuse in ['pid', 'pool', 'concat', 'vpid']:
             numWeight = 4
             self.user_s = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
                             np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
@@ -88,6 +89,16 @@ class VLIF(GeneralRecommender):
         self.user_uv = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
                         np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
                         gain=1).to(self.device))
+        # V-PID: extra pure-ID branch carrying the collaborative-only part of Y
+        self.use_id_branch = self.fuse == 'vpid' and bool(self._cfg(config, 'vpid_use_id_branch', True))
+        if self.use_id_branch:
+            numWeight += 1
+            self.user_id = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
+                            np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
+                            gain=1).to(self.device))
+            self.item_id = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
+                            np.random.randn(num_item, self.dim_latent), dtype=torch.float32, requires_grad=True),
+                            gain=1).to(self.device))
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
             torch.tensor(np.random.randn(self.num_user, numWeight, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
@@ -98,6 +109,8 @@ class VLIF(GeneralRecommender):
             self.t_gcn = GCN(self.aggr_mode, num_layer=self.ui_layer, dim_latent=64, device=self.device)
             self.s_gcn = GCN(self.aggr_mode, num_layer=self.ui_layer, dim_latent=64, device=self.device)
             self.r_gcn = GCN(self.aggr_mode, num_layer=self.ui_layer, dim_latent=64, device=self.device)
+        if self.use_id_branch:
+            self.id_gcn = GCN(self.aggr_mode, num_layer=self.ui_layer, dim_latent=64, device=self.device)
 
         self.user_graph = User_Graph_sample(num_user, 'add', self.dim_latent)
         if self.fuse == 'pid':
@@ -106,9 +119,119 @@ class VLIF(GeneralRecommender):
             self.fuseFn = nn.Linear(self.v_feat.size(1) * 2, self.dim_latent)
         elif self.fuse == 'pool':
             self.fuseFn = nn.Linear(self.v_feat.size(1), self.dim_latent)
+        elif self.fuse == 'vpid':
+            self._init_vpid(config, dataset_path, train_interactions)
 
         self.rProj = nn.Linear(self.dim_latent, self.t_feat.size(1), bias=False)
     
+
+    @staticmethod
+    def _cfg(config, key, default):
+        value = config[key]
+        return default if value is None else value
+
+    def _init_vpid(self, config, dataset_path, train_interactions):
+        """Predictive PID: decompose the ID-only collaborative embedding Y (pretrain_cf.py)."""
+        y_file = os.path.join(dataset_path, self._cfg(config, 'cf_item_emb_file', 'cf_item_emb.npy'))
+        if not os.path.isfile(y_file):
+            raise FileNotFoundError('{} not found. Run first: python src/pretrain_cf.py -d {}'.format(
+                y_file, config['dataset']))
+        Y = torch.from_numpy(np.load(y_file)).float()
+        assert Y.shape[0] == self.num_item, 'cf_item_emb rows ({}) != n_items ({})'.format(Y.shape[0], self.num_item)
+
+        # items without train interactions have no reliable Y
+        degree = np.bincount(train_interactions.col, minlength=self.num_item)
+        has_y = degree > 0
+        # held-out items: excluded from the V-PID loss, used for unbiased V-PID estimates
+        holdout_ratio = float(self._cfg(config, 'vpid_holdout_ratio', 0.1))
+        rng = np.random.RandomState(int(self._cfg(config, 'vpid_split_seed', 2026)))
+        holdout = rng.rand(self.num_item) < holdout_ratio
+        w_train = torch.from_numpy((has_y & ~holdout).astype(np.float32))
+        w_eval = torch.from_numpy((has_y & holdout).astype(np.float32))
+
+        self.register_buffer('vpid_Y', standardize(Y, w_train))
+        self.register_buffer('vpid_w_train', w_train)
+        self.register_buffer('vpid_w_eval', w_eval)
+
+        cfg = VPIDConfig(
+            visual_input_dim=self.v_feat.shape[1],
+            text_input_dim=self.t_feat.shape[1],
+            y_dim=Y.shape[1],
+            encoder_hidden_dim=int(self._cfg(config, 'vpid_hidden_dim', 128)),
+            latent_dim=self.dim_latent,
+            comp_dim=self.dim_latent,          # components feed the 64-d GCN branches
+            decoder_hidden_dim=int(self._cfg(config, 'vpid_decoder_hidden_dim', 64)),
+            adversary_hidden_dim=int(self._cfg(config, 'vpid_adversary_hidden_dim', 128)),
+            input_dropout=float(self._cfg(config, 'vpid_input_dropout', 0.0)),
+            lambda_single=float(self._cfg(config, 'vpid_lambda_single', 1.0)),
+            lambda_joint=float(self._cfg(config, 'vpid_lambda_joint', 1.0)),
+            lambda_r=float(self._cfg(config, 'vpid_lambda_r', 1.0)),
+            beta_r=float(self._cfg(config, 'vpid_beta_r', 1.0)),
+            beta_warmup_steps=int(self._cfg(config, 'vpid_beta_warmup_steps', 500)),
+            lambda_excl=float(self._cfg(config, 'vpid_lambda_excl', 0.1)),
+            grl_lambda=float(self._cfg(config, 'vpid_grl_lambda', 1.0)),
+        )
+        self.fuseFn = PredictivePID(cfg)
+        self.vpid_weight = float(self._cfg(config, 'vpid_weight', 1.0))
+        self.vpid_log_step = int(self._cfg(config, 'vpid_log_step', 5))
+        self._vpid_epoch = 0
+        self._vpid_stats = {}
+
+    def _forward_vpid(self, interaction):
+        user_nodes = interaction[0]
+        pos_item_nodes = interaction[1] + self.n_users
+        neg_item_nodes = interaction[2] + self.n_users
+
+        out = self.fuseFn(self.v_feat, self.t_feat)
+        if self.training:
+            losses = self.fuseFn.compute_losses(out, self.vpid_Y, self.vpid_w_train)
+            self.jepaLoss = self.vpid_weight * losses['loss']
+            for k, v in losses.items():
+                if k != 'loss':
+                    self._vpid_stats.setdefault(k, []).append(float(v))
+        else:
+            self.jepaLoss = 0.0
+
+        # same branch order as the 'pid' path: T, V, S, R (+ ID)
+        branches = [(out['u_t'], self.user_ut, self.t_gcn),
+                    (out['u_v'], self.user_uv, self.v_gcn),
+                    (out['s'], self.user_s, self.s_gcn),
+                    (out['r'], self.user_r, self.r_gcn)]
+        if self.use_id_branch:
+            branches.append((self.item_id, self.user_id, self.id_gcn))
+        reps = [gcn(self.edge_index, feat, user) for feat, user, gcn in branches]
+
+        item_rep = torch.cat([x[self.num_user:] for x in reps], dim=1)
+        item_rep = self.item_item(item_rep)
+
+        user_rep = torch.stack([x[:self.num_user] for x in reps], dim=2)     # [U, d, B]
+        user_rep = self.weight_u.transpose(1, 2) * user_rep                  # per-user branch weights
+        user_rep = torch.cat([user_rep[:, :, b] for b in range(user_rep.size(2))], dim=1)
+        h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
+        user_rep = 0.5 * (user_rep + h_u)
+
+        self.result_embed = torch.cat((user_rep, item_rep), dim=0)
+        user_tensor = self.result_embed[user_nodes]
+        pos_item_tensor = self.result_embed[pos_item_nodes]
+        neg_item_tensor = self.result_embed[neg_item_nodes]
+        pos_scores = torch.sum(user_tensor * pos_item_tensor, dim=1)
+        neg_scores = torch.sum(user_tensor * neg_item_tensor, dim=1)
+        return pos_scores, neg_scores
+
+    def post_epoch_processing(self):
+        if self.fuse != 'vpid':
+            return None
+        self._vpid_epoch += 1
+        stats = ', '.join('{}={:.4f}'.format(k, np.mean(v)) for k, v in self._vpid_stats.items())
+        self._vpid_stats = {}
+        msg = '[V-PID losses] ' + stats
+        if self.vpid_log_step > 0 and self._vpid_epoch % self.vpid_log_step == 0:
+            msg += '\n' + format_vpid(self.fuseFn.estimate(
+                self.v_feat, self.t_feat, self.vpid_Y, self.vpid_w_train), 'train-items')
+            if float(self.vpid_w_eval.sum()) > 0:
+                msg += '\n' + format_vpid(self.fuseFn.estimate(
+                    self.v_feat, self.t_feat, self.vpid_Y, self.vpid_w_eval), 'held-out-items')
+        return msg
 
     def get_knn_adj_mat(self, mm_embeddings):
         context_norm = mm_embeddings.div(torch.norm(mm_embeddings, p=2, dim=-1, keepdim=True))
@@ -150,6 +273,8 @@ class VLIF(GeneralRecommender):
         return rep + h
 
     def forward(self, interaction):
+        if self.fuse == 'vpid':
+            return self._forward_vpid(interaction)
         user_nodes, pos_item_nodes, neg_item_nodes = interaction[0], interaction[1], interaction[2]
         pos_item_nodes += self.n_users
         neg_item_nodes += self.n_users
@@ -224,7 +349,7 @@ class VLIF(GeneralRecommender):
         user = interaction[0]
         pos_scores, neg_scores = self.forward(interaction)
         loss_value = -torch.mean(torch.log2(torch.sigmoid(pos_scores - neg_scores)))
-        if self.fuse != 'pid':
+        if self.fuse not in ('pid', 'vpid'):
             self.jepaLoss = 0.0
         
         reg_loss = self.reg_weight * (self.weight_u ** 2).mean()

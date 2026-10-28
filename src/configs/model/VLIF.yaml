@@ -11,5 +11,26 @@ ii_layers: [1]
 ui_layers: [3]
 learning_rate: [0.0001]
 reg_weight: [0.01]
-fuse: 'pid' # None, 'pid', 'concat', 'pool', 'comm', 'prism'
+fuse: 'vpid' # None, 'pid' (self-supervised PID-JEPA, baseline), 'vpid' (Predictive PID on Y), 'concat', 'pool'
 hyper_parameters: ["ui_layers", "ii_layers", "reg_weight", "learning_rate"]
+
+# ---------------- Predictive PID (fuse: 'vpid') ----------------
+# Y = ID-only collaborative item embedding. Create it first with:
+#     python src/pretrain_cf.py -d <dataset>
+cf_item_emb_file: 'cf_item_emb.npy'
+vpid_weight: 1.0              # weight of the V-PID loss vs. BPR
+vpid_use_id_branch: True      # extra pure-ID GCN branch (collaborative-only part of Y)
+vpid_hidden_dim: 128
+vpid_decoder_hidden_dim: 64
+vpid_adversary_hidden_dim: 128
+vpid_input_dropout: 0.0
+vpid_lambda_single: 1.0       # H_V(Y|v) + H_V(Y|t)
+vpid_lambda_joint: 1.0        # H_V(Y|v,t)
+vpid_lambda_r: 1.0            # V-redundancy (shared decoder + agreement)
+vpid_beta_r: 1.0              # agreement weight after warm-up
+vpid_beta_warmup_steps: 500   # in training steps (batches)
+vpid_lambda_excl: 0.1         # adversarial exclusivity of U_v, U_t, S
+vpid_grl_lambda: 1.0
+vpid_holdout_ratio: 0.1       # items excluded from the V-PID loss, used for unbiased estimates
+vpid_split_seed: 2026
+vpid_log_step: 5              # log V-PID estimates every N epochs (0 = off)

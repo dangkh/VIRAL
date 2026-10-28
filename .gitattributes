@@ -1,0 +1,2 @@
+*.sh  text eol=lf
+*.pbs text eol=lf

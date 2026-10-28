@@ -1,0 +1,37 @@
+#!/bin/bash
+#PBS -N VIRAL_exp
+#PBS -q small_gpuq
+#PBS -l select=1:ncpus=4:ngpus=1:mem=24gb
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#
+# Runs ONE line of an experiment file. Normally submitted by scripts/submit_all.sh:
+#   qsub -v CFG_IDX=3,CFG_FILE=scripts/experiments_baby.txt,DATASET=baby scripts/run_one.pbs
+# Also works as a PBS array job (CFG_IDX falls back to PBS_ARRAY_INDEX).
+
+cd "$PBS_O_WORKDIR" || exit 1
+
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV:-Astar}"
+
+DATASET="${DATASET:-baby}"
+CFG_FILE="${CFG_FILE:-scripts/experiments_${DATASET}.txt}"
+CFG_IDX="${CFG_IDX:-${PBS_ARRAY_INDEX}}"
+
+# n-th (0-based) non-empty, non-comment line of the experiment file
+LINE=$(grep -v '^[[:space:]]*#' "$CFG_FILE" | tr -d '\r' | grep -v '^[[:space:]]*$' | sed -n "$((CFG_IDX + 1))p")
+if [ -z "$LINE" ]; then
+    echo "No experiment at index $CFG_IDX in $CFG_FILE"; exit 1
+fi
+NAME=$(echo "$LINE" | awk '{print $1}')
+ARGS=$(echo "$LINE" | cut -s -d' ' -f2- | xargs)
+
+echo "Job ID:     $PBS_JOBID"
+echo "Node:       $(hostname)"
+echo "Python:     $(which python)"
+echo "Experiment: [$CFG_IDX] $NAME"
+echo "Overrides:  $ARGS"
+nvidia-smi
+
+# shellcheck disable=SC2086
+python -u src/main.py -d "$DATASET" --exp_name="$NAME" $ARGS

@@ -23,7 +23,11 @@ def init_logger(config):
     if not os.path.exists(dir_name):
         os.makedirs(dir_name)
 
-    logfilename = '{}-{}-{}.log'.format(config['model'], config['dataset'], get_local_time())
+    exp_name = config['exp_name']
+    if exp_name:
+        logfilename = '{}-{}-{}-{}.log'.format(config['model'], config['dataset'], exp_name, get_local_time())
+    else:
+        logfilename = '{}-{}-{}.log'.format(config['model'], config['dataset'], get_local_time())
 
     logfilepath = os.path.join(LOGROOT, logfilename)
 

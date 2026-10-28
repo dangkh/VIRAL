@@ -1,0 +1,24 @@
+# One experiment per line:  <name>  <overrides...>
+#   - name: short, no spaces (used for the PBS job name and the log file name)
+#   - overrides: --key=value for any config key (YAML-parsed, no spaces inside a value)
+#   - lines starting with # are ignored
+#   - several seeds in ONE job: add --seed=[999,1,2]
+
+# ---- main comparison ----
+vpid            --fuse=vpid
+pid_ssl         --fuse=pid
+concat          --fuse=concat
+pool            --fuse=pool
+no_fusion       --fuse=none
+
+# ---- V-PID ablations ----
+vpid_noID       --fuse=vpid --vpid_use_id_branch=False
+vpid_noExcl     --fuse=vpid --vpid_lambda_excl=0.0
+vpid_noAgree    --fuse=vpid --vpid_beta_r=0.0
+
+# ---- V-PID sensitivity ----
+vpid_w0.1       --fuse=vpid --vpid_weight=0.1
+vpid_w0.5       --fuse=vpid --vpid_weight=0.5
+vpid_excl0.5    --fuse=vpid --vpid_lambda_excl=0.5
+vpid_drop0.1    --fuse=vpid --vpid_input_dropout=0.1
+vpid_lr1e-3     --fuse=vpid --learning_rate=0.001

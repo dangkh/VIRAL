@@ -1,0 +1,17 @@
+#!/bin/bash
+#PBS -N VIRAL_cf
+#PBS -q small_gpuq
+#PBS -l select=1:ncpus=4:ngpus=1:mem=24gb
+#PBS -l walltime=02:00:00
+#PBS -j oe
+#
+# Pretrains the ID-only collaborative target Y (data/<dataset>/cf_item_emb.npy).
+
+cd "$PBS_O_WORKDIR" || exit 1
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV:-Astar}"
+
+DATASET="${DATASET:-baby}"
+echo "Job ID: $PBS_JOBID | Node: $(hostname) | Dataset: $DATASET"
+nvidia-smi
+python -u src/pretrain_cf.py -d "$DATASET"

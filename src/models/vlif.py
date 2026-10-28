@@ -75,7 +75,8 @@ class VLIF(GeneralRecommender):
         # pdb.set_trace()
         numWeight = 2
         if self.fuse in ['pid', 'pool', 'concat', 'vpid']:
-            numWeight = 4
+            # pid/vpid: T, V, S, R ; concat/pool: T, V, fused (no R)
+            numWeight = 4 if self.fuse in ['pid', 'vpid'] else 3
             self.user_s = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
                             np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
                             gain=1).to(self.device))
@@ -177,28 +178,61 @@ class VLIF(GeneralRecommender):
         self._vpid_epoch = 0
         self._vpid_stats = {}
 
-    def _forward_vpid(self, interaction):
+    def _branches(self):
+        """
+        Item-side features per branch, paired with the branch's user embedding and GCN.
+        Order (must match weight_u): T, V, [S], [R], [ID].
+        Also sets self.jepaLoss for the PID variants.
+        """
+        if self.fuse == 'vpid':
+            out = self.fuseFn(self.v_feat, self.t_feat)
+            if self.training:
+                losses = self.fuseFn.compute_losses(out, self.vpid_Y, self.vpid_w_train)
+                self.jepaLoss = self.vpid_weight * losses['loss']
+                for k, v in losses.items():
+                    if k != 'loss':
+                        self._vpid_stats.setdefault(k, []).append(float(v))
+            else:
+                self.jepaLoss = 0.0
+            branches = [(out['u_t'], self.user_ut, self.t_gcn),
+                        (out['u_v'], self.user_uv, self.v_gcn),
+                        (out['s'], self.user_s, self.s_gcn),
+                        (out['r'], self.user_r, self.r_gcn)]
+            if self.use_id_branch:
+                branches.append((self.item_id, self.user_id, self.id_gcn))
+            return branches
+
+        if self.fuse == 'pid':
+            if self.training:
+                self.fuseFn.update_target()
+            outputs = self.fuseFn(self.v_feat, self.t_feat)
+            self.jepaLoss = self.fuseFn.compute_losses(outputs)['loss']
+            return [(outputs['u_t'], self.user_ut, self.t_gcn),
+                    (outputs['u_v'], self.user_uv, self.v_gcn),
+                    (outputs['s'], self.user_s, self.s_gcn),
+                    (outputs['r'], self.user_r, self.r_gcn)]
+
+        tfeat = self.text_trs(self.t_feat)
+        vfeat = self.image_trs(self.v_feat)
+        if self.fuse in ('concat', 'pool'):
+            # fusion ablations (VIRAL Table 2): [T, V, fused], no R branch
+            if self.fuse == 'concat':
+                fused = self.fuseFn(torch.cat((self.v_feat, self.t_feat), dim=1))
+            else:
+                fused = self.fuseFn((self.v_feat + self.t_feat) / 2)
+            return [(tfeat, self.user_ut, self.t_gcn),
+                    (vfeat, self.user_uv, self.v_gcn),
+                    (fused, self.user_s, self.s_gcn)]
+
+        return [(tfeat, self.user_ut, self.t_gcn),
+                (vfeat, self.user_uv, self.v_gcn)]
+
+    def _score(self, branches, interaction):
         user_nodes = interaction[0]
         pos_item_nodes = interaction[1] + self.n_users
         neg_item_nodes = interaction[2] + self.n_users
 
-        out = self.fuseFn(self.v_feat, self.t_feat)
-        if self.training:
-            losses = self.fuseFn.compute_losses(out, self.vpid_Y, self.vpid_w_train)
-            self.jepaLoss = self.vpid_weight * losses['loss']
-            for k, v in losses.items():
-                if k != 'loss':
-                    self._vpid_stats.setdefault(k, []).append(float(v))
-        else:
-            self.jepaLoss = 0.0
-
-        # same branch order as the 'pid' path: T, V, S, R (+ ID)
-        branches = [(out['u_t'], self.user_ut, self.t_gcn),
-                    (out['u_v'], self.user_uv, self.v_gcn),
-                    (out['s'], self.user_s, self.s_gcn),
-                    (out['r'], self.user_r, self.r_gcn)]
-        if self.use_id_branch:
-            branches.append((self.item_id, self.user_id, self.id_gcn))
+        # one user-item GCN per branch (late fusion: branches never mix inside the graph)
         reps = [gcn(self.edge_index, feat, user) for feat, user, gcn in branches]
 
         item_rep = torch.cat([x[self.num_user:] for x in reps], dim=1)
@@ -208,6 +242,7 @@ class VLIF(GeneralRecommender):
         user_rep = self.weight_u.transpose(1, 2) * user_rep                  # per-user branch weights
         user_rep = torch.cat([user_rep[:, :, b] for b in range(user_rep.size(2))], dim=1)
         h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
+        # comment/remove the coefficient 0.5 for cloth dataset
         user_rep = 0.5 * (user_rep + h_u)
 
         self.result_embed = torch.cat((user_rep, item_rep), dim=0)
@@ -273,77 +308,10 @@ class VLIF(GeneralRecommender):
         return rep + h
 
     def forward(self, interaction):
-        if self.fuse == 'vpid':
-            return self._forward_vpid(interaction)
-        user_nodes, pos_item_nodes, neg_item_nodes = interaction[0], interaction[1], interaction[2]
-        pos_item_nodes += self.n_users
-        neg_item_nodes += self.n_users
-
-        if self.fuse in ['pid', 'pool', 'concat']:
-            if self.fuse == 'pid':
-                if self.training:
-                    self.fuseFn.update_target()
-                outputs = self.fuseFn(self.v_feat, self.t_feat)
-                losses = self.fuseFn.compute_losses(outputs)
-                self.jepaLoss = losses['loss']
-                rFeat  = outputs["r"]
-                uvFeat = outputs["u_v"]
-                utFeat = outputs["u_t"]
-                sFeat  = outputs["s"]
-            elif self.fuse == 'concat':
-                sFeat = self.fuseFn(torch.cat((self.v_feat, self.t_feat), dim=1))
-            elif self.fuse == 'pool':
-                sFeat = self.fuseFn((self.v_feat + self.t_feat) / 2)
-            self.s_rep = self.s_gcn(self.edge_index, sFeat, self.user_s)
-            self.r_rep = self.r_gcn(self.edge_index, rFeat, self.user_r)
-            self.v_rep = self.v_gcn(self.edge_index, uvFeat, self.user_uv)
-            self.t_rep = self.t_gcn(self.edge_index, utFeat, self.user_ut)
-        else:
-            vfeat = self.image_trs(self.v_feat)
-            tfeat = self.text_trs(self.t_feat)
-            self.v_rep = self.v_gcn(self.edge_index, vfeat, self.user_uv)
-            self.t_rep = self.t_gcn(self.edge_index, tfeat, self.user_ut)
-    
-        item_repV = self.v_rep[self.num_user:]
-        item_repT = self.t_rep[self.num_user:]
-        if self.fuse in ['pid', 'pool', 'concat']:
-            item_repS = self.s_rep[self.num_user:]
-            item_repR = self.r_rep[self.num_user:]
-            item_rep = torch.cat((item_repT, item_repV, item_repS, item_repR), dim=1)
-        else:
-            item_rep = torch.cat((item_repT, item_repV), dim=1)
-        item_rep = self.item_item(item_rep)
-
-
-        user_repV = self.v_rep[:self.num_user]
-        user_repV = user_repV.unsqueeze(2)
-        user_repT = self.t_rep[:self.num_user]
-        user_repT = user_repT.unsqueeze(2)
-        if self.fuse in ['pid', 'pool', 'concat']:
-            user_repS = self.s_rep[:self.num_user]
-            user_repS = user_repS.unsqueeze(2)
-            user_repR = self.r_rep[:self.num_user]
-            user_repR = user_repR.unsqueeze(2)
-            user_rep = torch.cat((user_repT, user_repV, user_repS, user_repR), dim=2)
-            user_rep = self.weight_u.transpose(1,2)*user_rep
-            user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1], user_rep[:,:,2], user_rep[:,:,3]), dim=1)
-        else:
-            user_rep = torch.cat((user_repT, user_repV), dim=2)
-            user_rep = self.weight_u.transpose(1,2)*user_rep
-            user_rep = torch.cat((user_rep[:,:,0], user_rep[:,:,1]), dim=1)
-
-        h_u = self.user_graph(user_rep, self.epoch_user_graph, self.user_weight_matrix)
-        # comment/remove the coefficient 0.5 for cloth dataset
-        user_rep = 0.5 * (user_rep + h_u)
-        
-
-        self.result_embed = torch.cat((user_rep, item_rep), dim=0)
-        user_tensor = self.result_embed[user_nodes]
-        pos_item_tensor = self.result_embed[pos_item_nodes]
-        neg_item_tensor = self.result_embed[neg_item_nodes]
-        pos_scores = torch.sum(user_tensor * pos_item_tensor, dim=1)
-        neg_scores = torch.sum(user_tensor * neg_item_tensor, dim=1)
-        return pos_scores, neg_scores
+        branches = self._branches()
+        assert len(branches) == self.weight_u.size(1), 'weight_u has {} slots for {} branches'.format(
+            self.weight_u.size(1), len(branches))
+        return self._score(branches, interaction)
 
     def calculate_loss(self, interaction):
         user = interaction[0]

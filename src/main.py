@@ -9,8 +9,34 @@ Main entry
 
 import os
 import argparse
+import yaml
 from utils.quick_start import quick_start
 os.environ['NUMEXPR_MAX_THREADS'] = '48'
+
+
+def parse_overrides(tokens):
+    """
+    Extra command-line arguments override any config key (highest priority):
+        --fuse=vpid --vpid_weight=0.5 --vpid_use_id_branch=False --seed=[999,1,2]
+    Values are parsed as YAML (numbers, booleans, lists, strings).
+    """
+    overrides, i = {}, 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if not tok.startswith('--'):
+            raise ValueError('Unexpected argument: {}'.format(tok))
+        tok = tok.lstrip('-')
+        if '=' in tok:
+            key, raw = tok.split('=', 1)
+        else:
+            key = tok
+            if i + 1 >= len(tokens) or tokens[i + 1].startswith('--'):
+                raise ValueError('Missing value for --{}'.format(key))
+            i += 1
+            raw = tokens[i]
+        overrides[key] = yaml.safe_load(raw)
+        i += 1
+    return overrides
 
 
 if __name__ == '__main__':
@@ -25,7 +51,11 @@ if __name__ == '__main__':
         'gpu_id': 0,
     }
 
-    args, _ = parser.parse_known_args()
+    args, unknown = parser.parse_known_args()
+    overrides = parse_overrides(unknown)
+    if overrides:
+        print('Config overrides from command line:', overrides)
+    config_dict.update(overrides)
 
     quick_start(model=args.model, dataset=args.dataset, config_dict=config_dict, save_model=True)
 

@@ -1,0 +1,60 @@
+#!/bin/bash
+#PBS -N VIRAL_wk
+#PBS -q small_gpuq
+#PBS -l select=1:ncpus=4:ngpus=1:mem=24gb
+#PBS -l walltime=04:00:00
+#PBS -j oe
+#
+# Runs, one after another, the experiments listed in TASK_FILE (one experiment line per row).
+# Submitted by scripts/submit_all.sh, which also sets walltime for the whole list.
+# Experiments whose log already contains a finished result are skipped, so re-submitting
+# after a walltime kill simply continues with what is left.
+
+cd "$PBS_O_WORKDIR" || exit 1
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV:-Astar}"
+
+DATASET="${DATASET:-baby}"
+[ -f "$TASK_FILE" ] || { echo "Task file not found: $TASK_FILE"; exit 1; }
+
+echo "Job ID:  $PBS_JOBID"
+echo "Node:    $(hostname)"
+echo "Python:  $(which python)"
+echo "Tasks:   $TASK_FILE ($(grep -c . "$TASK_FILE") experiments)"
+nvidia-smi
+
+if [ -n "${RUN_PRETRAIN:-}" ] && [ ! -f "data/${DATASET}/cf_item_emb.npy" ]; then
+    echo "===== pretrain Y (ID-only LightGCN) ====="
+    python -u src/pretrain_cf.py -d "$DATASET" < /dev/null || { echo "pretrain failed"; exit 1; }
+fi
+
+# other workers: wait until Y is fully written (cf_item_degree.npy is saved last)
+WAITED=0
+while [ ! -f "data/${DATASET}/cf_item_degree.npy" ] || [ ! -f "data/${DATASET}/cf_item_emb.npy" ]; do
+    if [ "$WAITED" -ge "${WAIT_Y_MIN:-180}" ]; then echo "Y not available after ${WAITED} min"; exit 1; fi
+    [ "$WAITED" = "0" ] && echo "Waiting for data/${DATASET}/cf_item_emb.npy ..."
+    sleep 60; WAITED=$((WAITED + 1))
+done
+
+N_OK=0; N_FAIL=0; N_SKIP=0
+while IFS= read -r LINE || [ -n "$LINE" ]; do
+    LINE=$(echo "$LINE" | tr -d '\r')
+    [ -z "$LINE" ] && continue
+    NAME=$(echo "$LINE" | awk '{print $1}')
+    ARGS=$(echo "$LINE" | cut -s -d' ' -f2- | xargs)
+
+    if grep -l 'BEST ████' log/VLIF-"${DATASET}"-"${NAME}"-*.log >/dev/null 2>&1; then
+        echo "===== [skip] $NAME (finished log exists) ====="
+        N_SKIP=$((N_SKIP + 1)); continue
+    fi
+
+    echo "===== [$(date '+%F %T')] start $NAME : $ARGS ====="
+    # shellcheck disable=SC2086
+    if python -u src/main.py -d "$DATASET" --exp_name="$NAME" $ARGS < /dev/null; then
+        N_OK=$((N_OK + 1)); echo "===== [$(date '+%F %T')] done  $NAME ====="
+    else
+        N_FAIL=$((N_FAIL + 1)); echo "===== [$(date '+%F %T')] FAILED $NAME (continuing) ====="
+    fi
+done < "$TASK_FILE"
+
+echo "Worker finished: ok=$N_OK failed=$N_FAIL skipped=$N_SKIP"

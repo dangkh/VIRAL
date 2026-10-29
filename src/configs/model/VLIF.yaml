@@ -36,3 +36,9 @@ vpid_split_seed: 2026
 vpid_log_step: 5              # log V-PID estimates every N epochs (0 = off)
 vpid_detach_rec: False        # True: BPR gradient does not reach the PID encoders
 clip_grad_norm: {max_norm: 5.0}   # safety net against divergence (applies to every fuse mode)
+
+# ---------------- extra pure-ID branch (any fuse mode) ----------------
+# use_id_branch: True        # default: vpid_use_id_branch for fuse='vpid', False otherwise
+id_init: 'random'            # 'random' (basic learnable ID) | 'cf' (init from cf_user_emb.npy / cf_item_emb.npy)
+id_freeze: False             # True: keep ID embeddings fixed (use with id_init='cf')
+cf_user_emb_file: 'cf_user_emb.npy'

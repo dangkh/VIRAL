@@ -1,0 +1,17 @@
+# Does a pure-ID branch help? Compare with the existing concat_s* runs (same seeds).
+#   bash scripts/submit_all.sh baby scripts/experiments_baby_id.txt
+#   python scripts/collect_results.py --group_seeds
+# concat_id   : concat + learnable ID branch (random init, 'basic ID')
+# concat_idcf : concat + ID branch initialised from pretrained LightGCN (cf_*_emb.npy)
+
+concat_id_s999    --fuse=concat --use_id_branch=True --id_init=random --seed=999
+concat_id_s1      --fuse=concat --use_id_branch=True --id_init=random --seed=1
+concat_id_s2      --fuse=concat --use_id_branch=True --id_init=random --seed=2
+concat_id_s3      --fuse=concat --use_id_branch=True --id_init=random --seed=3
+concat_id_s4      --fuse=concat --use_id_branch=True --id_init=random --seed=4
+
+concat_idcf_s999  --fuse=concat --use_id_branch=True --id_init=cf --seed=999
+concat_idcf_s1    --fuse=concat --use_id_branch=True --id_init=cf --seed=1
+concat_idcf_s2    --fuse=concat --use_id_branch=True --id_init=cf --seed=2
+concat_idcf_s3    --fuse=concat --use_id_branch=True --id_init=cf --seed=3
+concat_idcf_s4    --fuse=concat --use_id_branch=True --id_init=cf --seed=4

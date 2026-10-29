@@ -1,0 +1,33 @@
+#!/bin/bash
+#PBS -N id_job0
+#PBS -q small_gpuq
+#PBS -l select=1:ncpus=4:ngpus=1:mem=24gb
+#PBS -l walltime=12:00:00
+#PBS -j oe
+#
+# Concat + ID experiments, job 0/3: concat_id_s999, concat_id_s4, concat_idcf_s3
+# Submit all four from the repo root:   for i in 0 1 2 3; do qsub scripts/jobs/id_job$i.pbs; done
+# Results:                              python scripts/collect_results.py --group_seeds
+# An experiment with a finished log is skipped, so re-submitting continues where it stopped.
+
+cd "$PBS_O_WORKDIR" || exit 1
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV:-Astar}"
+echo "Job ID: $PBS_JOBID | Node: $(hostname) | Python: $(which python)"
+nvidia-smi
+
+DATASET=baby
+run_exp() {
+    local NAME=$1; shift
+    if grep -l 'BEST ████' log/VLIF-${DATASET}-${NAME}-*.log >/dev/null 2>&1; then
+        echo "===== [skip] $NAME (finished log exists)"; return 0
+    fi
+    echo "===== [$(date '+%F %T')] start $NAME : $*"
+    python -u src/main.py -d "$DATASET" --exp_name="$NAME" "$@" < /dev/null \
+        && echo "===== [$(date '+%F %T')] done  $NAME" \
+        || echo "===== [$(date '+%F %T')] FAILED $NAME (continuing)"
+}
+
+run_exp concat_id_s999   --fuse=concat --use_id_branch=True --id_init=random --seed=999
+run_exp concat_id_s4     --fuse=concat --use_id_branch=True --id_init=random --seed=4
+run_exp concat_idcf_s3   --fuse=concat --use_id_branch=True --id_init=cf --seed=3

@@ -90,16 +90,36 @@ class VLIF(GeneralRecommender):
         self.user_uv = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
                         np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
                         gain=1).to(self.device))
-        # V-PID: extra pure-ID branch carrying the collaborative-only part of Y
-        self.use_id_branch = self.fuse == 'vpid' and bool(self._cfg(config, 'vpid_use_id_branch', True))
+        # Extra pure-ID branch (any fuse mode).
+        #   use_id_branch: True/False (default: vpid_use_id_branch for 'vpid', False otherwise)
+        #   id_init: 'random' (learnable xavier, "basic ID") | 'cf' (init from pretrain_cf.py LightGCN)
+        #   id_freeze: keep the ID embeddings fixed (only meaningful with id_init='cf')
+        default_id = bool(self._cfg(config, 'vpid_use_id_branch', True)) if self.fuse == 'vpid' else False
+        self.use_id_branch = bool(self._cfg(config, 'use_id_branch', default_id))
         if self.use_id_branch:
             numWeight += 1
-            self.user_id = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
-                            np.random.randn(num_user, self.dim_latent), dtype=torch.float32, requires_grad=True),
-                            gain=1).to(self.device))
-            self.item_id = nn.Parameter(nn.init.xavier_normal_(torch.tensor(
-                            np.random.randn(num_item, self.dim_latent), dtype=torch.float32, requires_grad=True),
-                            gain=1).to(self.device))
+            id_init = str(self._cfg(config, 'id_init', 'random')).lower()
+            if id_init == 'cf':
+                u_file = os.path.join(dataset_path, self._cfg(config, 'cf_user_emb_file', 'cf_user_emb.npy'))
+                i_file = os.path.join(dataset_path, self._cfg(config, 'cf_item_emb_file', 'cf_item_emb.npy'))
+                for f in (u_file, i_file):
+                    if not os.path.isfile(f):
+                        raise FileNotFoundError('{} not found. Run first: python src/pretrain_cf.py -d {}'.format(
+                            f, config['dataset']))
+                user_init = torch.from_numpy(np.load(u_file)).float()
+                item_init = torch.from_numpy(np.load(i_file)).float()
+                assert user_init.shape == (num_user, self.dim_latent), 'cf_user_emb shape {} != ({}, {})'.format(
+                    tuple(user_init.shape), num_user, self.dim_latent)
+                assert item_init.shape == (num_item, self.dim_latent), 'cf_item_emb shape {} != ({}, {})'.format(
+                    tuple(item_init.shape), num_item, self.dim_latent)
+            elif id_init == 'random':
+                user_init = nn.init.xavier_normal_(torch.empty(num_user, self.dim_latent), gain=1)
+                item_init = nn.init.xavier_normal_(torch.empty(num_item, self.dim_latent), gain=1)
+            else:
+                raise ValueError("id_init must be 'random' or 'cf', got {}".format(id_init))
+            freeze = bool(self._cfg(config, 'id_freeze', False))
+            self.user_id = nn.Parameter(user_init.to(self.device), requires_grad=not freeze)
+            self.item_id = nn.Parameter(item_init.to(self.device), requires_grad=not freeze)
         self.weight_u = nn.Parameter(nn.init.xavier_normal_(
             torch.tensor(np.random.randn(self.num_user, numWeight, 1), dtype=torch.float32, requires_grad=True)))
         self.weight_u.data = F.softmax(self.weight_u, dim=1)
@@ -202,8 +222,6 @@ class VLIF(GeneralRecommender):
                         (out['u_v'], self.user_uv, self.v_gcn),
                         (out['s'], self.user_s, self.s_gcn),
                         (out['r'], self.user_r, self.r_gcn)]
-            if self.use_id_branch:
-                branches.append((self.item_id, self.user_id, self.id_gcn))
             return branches
 
         if self.fuse == 'pid':
@@ -313,6 +331,8 @@ class VLIF(GeneralRecommender):
 
     def forward(self, interaction):
         branches = self._branches()
+        if self.use_id_branch:
+            branches.append((self.item_id, self.user_id, self.id_gcn))
         assert len(branches) == self.weight_u.size(1), 'weight_u has {} slots for {} branches'.format(
             self.weight_u.size(1), len(branches))
         return self._score(branches, interaction)

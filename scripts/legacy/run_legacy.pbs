@@ -1,0 +1,17 @@
+#!/bin/bash
+#PBS -N legacy
+#PBS -q small_gpuq
+#PBS -l select=1:ncpus=4:ngpus=1:mem=24gb
+#PBS -l walltime=08:00:00
+#PBS -j oe
+#
+# Runs the ORIGINAL jepa2 code inside worktree $WD (seeds are set in $WD/src/configs/overall.yaml).
+# Submitted by scripts/legacy/setup_legacy.sh.
+cd "$WD" || exit 1
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV:-Astar}"
+echo "Job ID: $PBS_JOBID | Node: $(hostname) | WD: $WD"
+grep -n "^seed:" src/configs/overall.yaml
+grep -n "return loss_value" src/models/vlif.py
+nvidia-smi
+python -u src/main.py -d baby < /dev/null

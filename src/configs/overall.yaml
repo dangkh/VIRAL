@@ -40,6 +40,10 @@ field_separator: "\t"
 metrics: ["Recall", "NDCG", "Precision", "MAP"]
 topk: [5, 10, 20, 50]
 valid_metric: Recall@20
+# popularity-group evaluation (logged next to the usual metrics; not used for model selection)
+pop_eval: True
+pop_eval_topk: [10, 20]
+pop_groups: [0.2, 0.5]      # head = top 20% items by train interactions, mid = 20-50%, tail = bottom 50%
 eval_batch_size: 4096
 
 #

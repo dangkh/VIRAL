@@ -15,9 +15,11 @@ import re
 from datetime import datetime
 
 TIME_RE = r'[A-Z][a-z]{2}-\d{2}-\d{4}-\d{2}-\d{2}-\d{2}'
-METRIC_RE = re.compile(r'([A-Za-z]+@\d+):\s*([0-9.]+)')
+METRIC_RE = re.compile(r'([A-Za-z_]+@\d+):\s*([0-9.]+)')
 VPID_RE = re.compile(r'\b(R|U_v|U_t|S|R2_vt|cf_only)=(-?[0-9.]+)')
 SHOW = ['recall@10', 'recall@20', 'ndcg@10', 'ndcg@20']
+# popularity-group metrics (present in logs produced after pop_eval was added)
+POP = ['recall_head@20', 'recall_mid@20', 'recall_tail@20', 'ndcg_tail@20', 'coverage@20', 'aplt@20', 'gini@20']
 
 
 def parse_metrics(line):
@@ -94,7 +96,9 @@ def main():
     runs.sort(key=lambda r: r.get('test_recall@20', -1), reverse=True)
 
     vpid_cols = ['vpid_R', 'vpid_U_v', 'vpid_U_t', 'vpid_S', 'vpid_R2_vt']
-    head = ['name', 'status', 'epochs', 'best_epoch', 'valid_recall@20'] + ['test_' + m for m in SHOW] + vpid_cols
+    has_pop = any('test_recall_tail@20' in r for r in runs)
+    pop_cols = ['test_' + m for m in POP] if has_pop else []
+    head = ['name', 'status', 'epochs', 'best_epoch', 'valid_recall@20'] + ['test_' + m for m in SHOW] + pop_cols + vpid_cols
     fmt = lambda x: '{:.4f}'.format(x) if isinstance(x, float) else str(x)
     widths = [max(len(h), *(len(fmt(r.get(h, ''))) for r in runs)) for h in head]
     print('  '.join(h.ljust(w) for h, w in zip(head, widths)))
@@ -114,11 +118,12 @@ def main():
     if args.group_seeds:
         groups = {}
         for r in runs:
-            if r['status'] == 'done':
+            # only seed runs (<name>_s<seed>) are grouped; a plain <name> run is usually a duplicate seed
+            if r['status'] == 'done' and re.search(r'_s\d+$', r['name']):
                 groups.setdefault(re.sub(r'_s\d+$', '', r['name']), []).append(r)
-        cols = ['valid_recall@20'] + ['test_' + m for m in SHOW]
+        cols = ['valid_recall@20'] + ['test_' + m for m in SHOW] + pop_cols
         print('\nMean +/- std over seeds (finished runs only)')
-        print('  '.join(['group'.ljust(14), 'n'] + [c.ljust(17) for c in cols]))
+        print('  '.join(['group'.ljust(14), 'n'] + [c.ljust(max(17, len(c))) for c in cols]))
         rows = []
         for g, rs in groups.items():
             cells = []
@@ -128,9 +133,10 @@ def main():
                 sd = (sum((x - mu) ** 2 for x in xs) / (len(xs) - 1)) ** 0.5 if len(xs) > 1 else 0.0
                 cells.append((mu, sd))
             rows.append((g, len(rs), cells))
-        rows.sort(key=lambda x: x[2][2][0], reverse=True)   # by test recall@20
+        rows.sort(key=lambda x: x[2][2][0] if x[2][2][0] == x[2][2][0] else -1, reverse=True)   # test recall@20
         for g, n, cells in rows:
-            print('  '.join([g.ljust(14), str(n)] + ['{:.4f}+/-{:.4f}'.format(mu, sd).ljust(17) for mu, sd in cells]))
+            print('  '.join([g.ljust(14), str(n)] + ['{:.4f}+/-{:.4f}'.format(mu, sd).ljust(max(17, len(c)))
+                              for (mu, sd), c in zip(cells, cols)]))
 
 
 if __name__ == '__main__':

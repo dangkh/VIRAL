@@ -32,6 +32,12 @@ class TopKEvaluator(object):
         self.topk = config['topk']
         self.save_recom_result = config['save_recommended_topk']
         self._check_args()
+        # popularity-group evaluation (head / mid / tail items by TRAIN interaction count)
+        self.pop_eval = True if config['pop_eval'] is None else bool(config['pop_eval'])
+        self.pop_topk = [k for k in (config['pop_eval_topk'] or [10, 20]) if k <= max(self.topk)]
+        self.pop_groups = list(config['pop_groups'] or [0.2, 0.5])   # head = top 20% items, mid = up to 50%
+        self._pop_cache_key = None
+        self._item_group = None
 
     def collect(self, interaction, scores_tensor, full=False):
         """collect the topk intermediate result of one batch, this function mainly
@@ -99,7 +105,66 @@ class TopKEvaluator(object):
             for k in self.topk:
                 key = '{}@{}'.format(metric, k)
                 metric_dict[key] = round(value[k - 1], 4)
+        if self.pop_eval and self.pop_topk:
+            metric_dict.update(self._popularity_metrics(eval_data, pos_items, topk_index, bool_rec_matrix))
         return metric_dict
+
+    # ------------------------------------------------------------------
+    # Popularity-aware evaluation
+    # ------------------------------------------------------------------
+    GROUP_NAMES = ('head', 'mid', 'tail')
+
+    def _get_item_groups(self, eval_data):
+        """0 = head, 1 = mid, 2 = tail, ranked by number of TRAIN interactions (ties: lower id first)."""
+        train = eval_data.additional_dataset
+        key = (id(train), len(train.df))
+        if key != self._pop_cache_key:
+            n_items = int(eval_data.dataset.item_num)
+            degree = np.bincount(train.df[train.iid_field].values.astype(np.int64), minlength=n_items)
+            order = np.argsort(-degree, kind='stable')
+            cut_head = int(np.ceil(self.pop_groups[0] * n_items))
+            cut_mid = int(np.ceil(self.pop_groups[1] * n_items))
+            group = np.full(n_items, 2, dtype=np.int64)
+            group[order[:cut_mid]] = 1
+            group[order[:cut_head]] = 0
+            self._item_group, self._pop_cache_key = group, key
+        return self._item_group
+
+    def _popularity_metrics(self, eval_data, pos_items, topk_index, bool_rec_matrix):
+        group = self._get_item_groups(eval_data)
+        n_items = len(group)
+        n_users = len(pos_items)
+        # number of test positives per user and group
+        pos_cnt = np.zeros((n_users, 3), dtype=np.int64)
+        for u, items in enumerate(pos_items):
+            np.add.at(pos_cnt[u], group[np.asarray(items, dtype=np.int64)], 1)
+        top_group = group[topk_index]                       # users x K
+        max_k = max(self.pop_topk)
+        discount = 1.0 / np.log2(np.arange(2, max_k + 2))
+        idcg_table = np.concatenate([[0.0], np.cumsum(discount)])
+        out = {}
+        for k in self.pop_topk:
+            hits = bool_rec_matrix[:, :k]
+            tg = top_group[:, :k]
+            for g, name in enumerate(self.GROUP_NAMES):
+                valid = pos_cnt[:, g] > 0
+                if not valid.any():
+                    continue
+                hg = hits & (tg == g)
+                recall = hg.sum(1)[valid] / pos_cnt[valid, g]
+                dcg = (hg * discount[:k]).sum(1)[valid]
+                idcg = idcg_table[np.minimum(pos_cnt[valid, g], k)]
+                out['recall_{}@{}'.format(name, k)] = round(float(recall.mean()), 4)
+                out['ndcg_{}@{}'.format(name, k)] = round(float((dcg / idcg).mean()), 4)
+            rec = topk_index[:, :k]
+            exposure = np.bincount(rec.ravel(), minlength=n_items).astype(np.float64)
+            x = np.sort(exposure)
+            i = np.arange(1, n_items + 1)
+            gini = float(((2 * i - n_items - 1) * x).sum() / (n_items * x.sum())) if x.sum() > 0 else 0.0
+            out['coverage@{}'.format(k)] = round(float((exposure > 0).mean()), 4)
+            out['aplt@{}'.format(k)] = round(float((tg == 2).mean()), 4)       # share of tail items in top-k
+            out['gini@{}'.format(k)] = round(gini, 4)
+        return out
 
     def _check_args(self):
         # Check metrics

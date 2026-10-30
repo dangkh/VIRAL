@@ -1,0 +1,24 @@
+#!/bin/bash
+#PBS -N probe_z
+#PBS -q smallq
+#PBS -l select=1:ncpus=4:mem=16gb
+#PBS -l walltime=01:00:00
+#PBS -j oe
+#
+# Linear probe "Y as latent z" (CPU only, numpy). Submit from the repo root:
+#   qsub scripts/jobs/probe_latent_z.pbs
+# Requires data/baby/cf_item_emb.npy (python src/pretrain_cf.py -d baby).
+cd "$PBS_O_WORKDIR" || exit 1
+source "$HOME/miniconda3/etc/profile.d/conda.sh"
+conda activate "${CONDA_ENV:-Astar}"
+DATASET="${DATASET:-baby}"
+
+# 1) current features (VIRAL: VLM-description image embedding + text embedding)
+python -u src/probe_latent_z.py -d "$DATASET" --debias --tag viral_feats
+
+# 2) standard MMRec features, if present (image CNN 4096-d + text 384-d)
+if [ -f "data/$DATASET/image_feat.npy" ] && [ -f "data/$DATASET/text_feat.npy" ]; then
+    python -u src/probe_latent_z.py -d "$DATASET" --v_file image_feat.npy --t_file text_feat.npy --debias --tag mmrec_feats
+else
+    echo "Standard MMRec features (image_feat.npy, text_feat.npy) not found in data/$DATASET - skipped."
+fi
